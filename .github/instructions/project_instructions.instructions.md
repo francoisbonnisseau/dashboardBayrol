@@ -11,4 +11,4 @@ The librairy is already set up in the project. To install components, you can us
 We already are in the desired directory, so you can run this command directly in the terminal.
 
 ## terminal
-I have a powershell terminal set up in the project root. You can run commands like `pnpm dev` to start the development server or `pnpm build` to build the project for production. we are alreadyin the desired directory, so you can run these commands directly in the terminal.
+I have a powershell terminal set up in the project root. You can run commands like `pnpm dev` to start the development server or `pnpm build` to build the project for production. we are already in the desired directory, so you can run these commands directly in the terminal.
