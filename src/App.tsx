@@ -32,8 +32,8 @@ function AppContent() {
         ) : (
           !isConfigured ? (
             /* Welcome screen for unconfigured app */
-            <div className="container mx-auto py-12">
-              <div className="max-w-2xl mx-auto">
+            <div className="container mx-auto max-w-6xl px-4 py-12">
+              <div className="max-w-4xl mx-auto">
                 <Card>
                   <CardHeader className="text-center">
                     <CardTitle className="text-2xl">Welcome to Botpress Dashboard</CardTitle>

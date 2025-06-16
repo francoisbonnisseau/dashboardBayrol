@@ -67,8 +67,7 @@ export default function ConversationsList() {
   const selectedBot = settings.bots.find(bot => bot.botId === selectedBotId);
 
   if (!settings.bots.some(bot => bot.botId)) {
-    return (
-      <div className="container mx-auto py-6">
+    return (      <div className="container mx-auto max-w-6xl px-4 py-6">
         <Card>
           <CardHeader>
             <CardTitle>No Bots Configured</CardTitle>
@@ -81,8 +80,7 @@ export default function ConversationsList() {
     );
   }
 
-  return (
-    <div className="container mx-auto py-6 space-y-6">
+  return (    <div className="container mx-auto max-w-6xl px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-6 w-6" />
@@ -143,10 +141,9 @@ export default function ConversationsList() {
         <div className="flex items-center justify-center py-12">
           <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      ) : (
-        <div className="grid gap-4">
+      ) : (        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {conversations.length === 0 ? (
-            <Card>
+            <Card className="md:col-span-2 xl:col-span-3">
               <CardContent className="pt-6 text-center text-muted-foreground">
                 {!client ? 'Select a bot to view conversations' : 'No conversations found'}
               </CardContent>
@@ -219,21 +216,20 @@ export default function ConversationsList() {
                   </CardFooter>
                 </Card>
               ))}
-              
-              {nextToken && (
-                <div className="flex justify-center mt-4 mb-8">
+                {nextToken && (
+                <div className="col-span-full flex justify-center mt-6 mb-8">
                   <Button
                     variant="outline"
                     onClick={() => fetchConversations(nextToken, true)}
                     disabled={loading}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 px-8 py-6 text-base"
                   >
                     {loading ? (
-                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <RefreshCw className="h-5 w-5 animate-spin" />
                     ) : (
                       <>
-                        Load More
-                        <ChevronRight className="h-4 w-4" />
+                        Load More Conversations
+                        <ChevronRight className="h-5 w-5" />
                       </>
                     )}
                   </Button>

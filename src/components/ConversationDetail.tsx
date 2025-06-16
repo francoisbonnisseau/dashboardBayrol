@@ -61,9 +61,8 @@ export default function ConversationDetail({ botId, conversationId, onClose, ope
     return new Date(dateString).toLocaleString();
   };
 
-  return (
-    <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <SheetContent side="right" className="w-full md:max-w-md lg:max-w-lg">
+  return (    <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <SheetContent side="right" className="w-full md:max-w-md lg:max-w-xl xl:max-w-2xl">
         <SheetHeader className="pb-4 border-b">
           <div className="flex items-center justify-between">
             <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
