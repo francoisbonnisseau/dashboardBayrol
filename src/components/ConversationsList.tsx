@@ -1,22 +1,29 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useBotpressClient } from '../hooks/useBotpressClient';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MessageCircle, RefreshCw, ChevronRight, Eye } from 'lucide-react';
+import { MessageCircle, RefreshCw, ChevronRight, Eye, AlertCircle } from 'lucide-react';
 import ConversationDetail from './ConversationDetail';
 import type { Conversation } from '../types';
+
+interface ConversationWithMessages extends Conversation {
+  hasMessages?: boolean;
+  isChecked?: boolean;
+}
 
 export default function ConversationsList() {
   const { settings } = useSettings();
   const [selectedBotId, setSelectedBotId] = useState<string>('');
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<ConversationWithMessages[]>([]);
   const [loading, setLoading] = useState(false);
+  const [filterLoading, setFilterLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nextToken, setNextToken] = useState<string | undefined>(undefined);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [showEmptyConversations, setShowEmptyConversations] = useState<boolean>(false);
   
   const client = useBotpressClient(selectedBotId);
 
@@ -43,10 +50,12 @@ export default function ConversationsList() {
         nextToken: token
       });
       
-      if (append && response.conversations) {
-        setConversations(prev => [...prev, ...response.conversations]);
+      const conversationsData = response.conversations || [];
+        if (append) {
+        setConversations(prev => [...prev, ...conversationsData]);
       } else {
-        setConversations(response.conversations || []);
+        setConversations(conversationsData);
+        // Reset all conversations with hasMessages to undefined
       }
       
       setNextToken(response.meta?.nextToken);
@@ -57,6 +66,56 @@ export default function ConversationsList() {
       setLoading(false);
     }
   }, [client]);  
+    // Check if conversations have messages
+  const checkConversationsForMessages = useCallback(async () => {
+    if (!client || conversations.length === 0) return;
+    
+    setFilterLoading(true);
+    
+    // Process conversations in batches to avoid overwhelming the API
+    const batchSize = 5;
+    const updatedConversations = [...conversations];
+    
+    for (let i = 0; i < updatedConversations.length; i += batchSize) {
+      const batch = updatedConversations.slice(i, i + batchSize).filter(c => !c.isChecked);
+      if (batch.length === 0) continue;
+      
+      await Promise.all(
+        batch.map(async (conversation) => {
+          try {
+            // Botpress API might not support 'limit' param directly, so we'll just check if any messages exist
+            const response = await client.listMessages({ 
+              conversationId: conversation.id
+            });
+            
+            const index = updatedConversations.findIndex(c => c.id === conversation.id);
+            if (index !== -1) {
+              updatedConversations[index] = {
+                ...updatedConversations[index],
+                hasMessages: (response.messages && response.messages.length > 0),
+                isChecked: true
+              };
+            }
+          } catch (err) {
+            console.error(`Error checking messages for conversation ${conversation.id}:`, err);
+            // Mark as checked with no messages on error to avoid repeated attempts
+            const index = updatedConversations.findIndex(c => c.id === conversation.id);
+            if (index !== -1) {
+              updatedConversations[index] = {
+                ...updatedConversations[index],
+                hasMessages: false,
+                isChecked: true
+              };
+            }
+          }
+        })
+      );      
+      // Update state after each batch to show progress
+      setConversations([...updatedConversations]);
+    }
+    
+    setFilterLoading(false);
+  }, [client, conversations]);
   
   // Fetch conversations when client changes
   useEffect(() => {
@@ -64,6 +123,13 @@ export default function ConversationsList() {
       fetchConversations(undefined, false);
     }
   }, [client, fetchConversations]);
+  
+  // Check for messages when conversations change
+  useEffect(() => {
+    if (conversations.length > 0) {
+      checkConversationsForMessages();
+    }
+  }, [conversations, checkConversationsForMessages]);
 
   const formatDate = (dateString: string) => {
     // Return date in format: Jan 24, 2023, 15:30
@@ -77,7 +143,15 @@ export default function ConversationsList() {
   };
 
   const selectedBot = settings.bots.find(bot => bot.botId === selectedBotId);
+    // Determine which conversations to display
+  const displayConversations = showEmptyConversations 
+    ? conversations 
+    : conversations.filter(c => c.hasMessages === true);
 
+  // Calculate loading and filtering progress
+  const checkedCount = conversations.filter(c => c.isChecked).length;
+  const filterProgress = conversations.length > 0 ? Math.round((checkedCount / conversations.length) * 100) : 0;
+  
   if (!settings.bots.some(bot => bot.botId)) {
     return (
       <div className="w-full px-6 py-6">
@@ -121,17 +195,46 @@ export default function ConversationsList() {
                 ))}
             </SelectContent>
           </Select>
-          <Button
-            onClick={() => fetchConversations(undefined, false)}
-            disabled={loading || !client}
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowEmptyConversations(!showEmptyConversations)}
+              className="flex items-center gap-1"
+            >
+              {showEmptyConversations ? "Hide Empty" : "Show All"}
+            </Button>
+            
+            <Button
+              onClick={() => fetchConversations(undefined, false)}
+              disabled={loading || !client}
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
+        {filterLoading && (
+        <div className="bg-blue-50 px-4 py-2 rounded-md flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
+            <span>Filtering conversations... {filterProgress}%</span>
+          </div>
+          <span className="text-xs text-blue-600">Only conversations with messages will be shown by default</span>
+        </div>
+      )}
+      
+      {!filterLoading && !showEmptyConversations && checkedCount === conversations.length && conversations.length > 0 && (
+        <div className="bg-green-50 px-4 py-2 rounded-md flex items-center justify-between">
+          <span className="text-sm text-green-700">
+            Showing {conversations.filter(c => c.hasMessages).length} of {conversations.length} conversations with messages
+          </span>
+        </div>
+      )}
 
       {error && (
         <Card className="border-red-200 bg-red-50">
@@ -150,10 +253,10 @@ export default function ConversationsList() {
         </div>
       ) : (
         <div className="w-full">
-          {conversations.length === 0 ? (
+          {displayConversations.length === 0 ? (
             <Card>
               <CardContent className="pt-6 text-center text-muted-foreground">
-                {!client ? 'Select a bot to view conversations' : 'No conversations found'}
+                {!client ? 'Select a bot to view conversations' : filterLoading ? 'Filtering conversations...' : 'No conversations found with messages'}
               </CardContent>
             </Card>
           ) : (
@@ -168,14 +271,15 @@ export default function ConversationsList() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {conversations.map((conversation) => (
+                  {displayConversations.map((conversation) => (
                     <TableRow 
                       key={conversation.id}
-                      className="cursor-pointer hover:bg-muted/50 h-10"
+                      className={`cursor-pointer hover:bg-muted/50 h-10 ${conversation.hasMessages === false ? 'text-muted-foreground' : ''}`}
                       onClick={() => setSelectedConversation(conversation.id)}
                     >
                       <TableCell className="font-mono text-xs">
-                        <div className="truncate max-w-[120px]" title={conversation.id}>
+                        <div className="truncate max-w-[120px] flex items-center gap-1" title={conversation.id}>
+                          {conversation.hasMessages === false && <AlertCircle className="h-3 w-3 text-muted-foreground" />}
                           {conversation.id.substring(0, 8)}...
                         </div>
                       </TableCell>
@@ -210,11 +314,11 @@ export default function ConversationsList() {
                 disabled={loading}
                 className="flex items-center gap-2"
               >
-                {loading ? (
+        {loading ? (
                   <RefreshCw className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    Load More
+                    Load More {!showEmptyConversations && "(With Messages Only)"}
                     <ChevronRight className="h-4 w-4" />
                   </>
                 )}
