@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useBotpressClient } from '../hooks/useBotpressClient';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageCircle, Calendar, Hash, RefreshCw, ChevronRight, ChevronLeft, Eye } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { MessageCircle, RefreshCw, ChevronRight, Eye } from 'lucide-react';
 import ConversationDetail from './ConversationDetail';
 import type { Conversation } from '../types';
 
@@ -27,7 +28,9 @@ export default function ConversationsList() {
         setSelectedBotId(firstConfiguredBot.botId);
       }
     }
-  }, [settings.bots, selectedBotId]);  const fetchConversations = useCallback(async (token?: string, append = false) => {
+  }, [settings.bots, selectedBotId]);  
+  
+  const fetchConversations = useCallback(async (token?: string, append = false) => {
     if (!client) return;
 
     setLoading(true);
@@ -53,7 +56,9 @@ export default function ConversationsList() {
     } finally {
       setLoading(false);
     }
-  }, [client]);  // Fetch conversations when client changes
+  }, [client]);  
+  
+  // Fetch conversations when client changes
   useEffect(() => {
     if (client) {
       fetchConversations(undefined, false);
@@ -61,13 +66,21 @@ export default function ConversationsList() {
   }, [client, fetchConversations]);
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
+    // Return date in format: Jan 24, 2023, 15:30
+    const date = new Date(dateString);
+    return date.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const selectedBot = settings.bots.find(bot => bot.botId === selectedBotId);
 
   if (!settings.bots.some(bot => bot.botId)) {
-    return (      <div className="w-full px-6 py-6">
+    return (
+      <div className="w-full px-6 py-6">
         <Card>
           <CardHeader>
             <CardTitle>No Bots Configured</CardTitle>
@@ -80,11 +93,17 @@ export default function ConversationsList() {
     );
   }
 
-  return (    <div className="w-full px-6 py-6 space-y-6">
+  return (
+    <div className="w-full px-6 py-4 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-6 w-6" />
-          <h1 className="text-3xl font-bold">Conversations</h1>
+          <h1 className="text-2xl font-bold">Conversations</h1>
+          {selectedBot && (
+            <span className="text-muted-foreground ml-2">
+              for <span className="font-medium">{selectedBot.name}</span>
+            </span>
+          )}
         </div>
         
         <div className="flex items-center gap-4">
@@ -102,7 +121,7 @@ export default function ConversationsList() {
                 ))}
             </SelectContent>
           </Select>
-            <Button
+          <Button
             onClick={() => fetchConversations(undefined, false)}
             disabled={loading || !client}
             size="sm"
@@ -114,20 +133,6 @@ export default function ConversationsList() {
         </div>
       </div>
 
-      {selectedBot && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5" />
-              {selectedBot.name} Conversations
-            </CardTitle>
-            <CardDescription>
-              Viewing conversations for {selectedBot.name}
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      )}
-
       {error && (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="pt-6">
@@ -137,105 +142,84 @@ export default function ConversationsList() {
             </div>
           </CardContent>
         </Card>
-      )}      {loading && conversations.length === 0 ? (
+      )}
+      
+      {loading && conversations.length === 0 ? (
         <div className="flex items-center justify-center py-12">
           <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      ) : (        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+      ) : (
+        <div className="w-full">
           {conversations.length === 0 ? (
-            <Card className="md:col-span-2 lg:col-span-3 xl:col-span-4 2xl:col-span-5">
+            <Card>
               <CardContent className="pt-6 text-center text-muted-foreground">
                 {!client ? 'Select a bot to view conversations' : 'No conversations found'}
               </CardContent>
             </Card>
           ) : (
-            <>
-              {conversations.map((conversation) => (
-                <Card 
-                  key={conversation.id} 
-                  className="hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => setSelectedConversation(conversation.id)}
-                >
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Hash className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-mono text-sm">{conversation.id}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Calendar className="h-4 w-4" />
-                        <span className="text-sm">{formatDate(conversation.updatedAt)}</span>
-                      </div>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="font-medium">Channel:</span> {conversation.channel}
-                      </div>
-                      <div>
-                        <span className="font-medium">Integration:</span> {conversation.integration}
-                      </div>
-                      <div>
-                        <span className="font-medium">Created:</span> {formatDate(conversation.createdAt)}
-                      </div>
-                      <div>
-                        <span className="font-medium">Updated:</span> {formatDate(conversation.updatedAt)}
-                      </div>
-                    </div>
-                    
-                    {Object.keys(conversation.tags).length > 0 && (
-                      <div className="pt-2">
-                        <span className="font-medium text-sm">Tags:</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {Object.entries(conversation.tags).map(([key, value]) => (
-                            <span
-                              key={key}
-                              className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800"
-                            >
-                              {key}: {String(value)}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                  <CardFooter className="border-t pt-3">
-                    <Button 
-                      variant="ghost"
-                      size="sm"
-                      className="ml-auto flex items-center gap-1 text-blue-600 hover:text-blue-800"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedConversation(conversation.id);
-                      }}
+            <div className="border rounded-md overflow-hidden">
+              <Table className="compact-table">
+                <TableHeader className="bg-muted/30 h-10">
+                  <TableRow>
+                    <TableHead className="w-1/6 py-2">ID</TableHead>
+                    <TableHead className="w-1/3 py-2">Created</TableHead>
+                    <TableHead className="w-1/3 py-2">Updated</TableHead>
+                    <TableHead className="w-1/6 text-right py-2">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {conversations.map((conversation) => (
+                    <TableRow 
+                      key={conversation.id}
+                      className="cursor-pointer hover:bg-muted/50 h-10"
+                      onClick={() => setSelectedConversation(conversation.id)}
                     >
-                      <Eye className="h-4 w-4" />
-                      View Messages
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
-                {nextToken && (
-                <div className="col-span-full flex justify-center mt-6 mb-8">
-                  <Button
-                    variant="outline"
-                    onClick={() => fetchConversations(nextToken, true)}
-                    disabled={loading}
-                    className="flex items-center gap-2 px-8 py-6 text-base"
-                  >
-                    {loading ? (
-                      <RefreshCw className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <>
-                        Load More Conversations
-                        <ChevronRight className="h-5 w-5" />
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-            </>
+                      <TableCell className="font-mono text-xs">
+                        <div className="truncate max-w-[120px]" title={conversation.id}>
+                          {conversation.id.substring(0, 8)}...
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">{formatDate(conversation.createdAt)}</TableCell>
+                      <TableCell className="text-sm">{formatDate(conversation.updatedAt)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button 
+                          variant="ghost"
+                          size="sm"
+                          className="flex items-center gap-1 text-blue-600 hover:text-blue-800 h-7 px-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedConversation(conversation.id);
+                          }}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          <span className="sr-only sm:not-sr-only">View</span>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          
+          {nextToken && (
+            <div className="flex justify-center mt-4">
+              <Button
+                variant="outline"
+                onClick={() => fetchConversations(nextToken, true)}
+                disabled={loading}
+                className="flex items-center gap-2"
+              >
+                {loading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    Load More
+                    <ChevronRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </div>
           )}
         </div>
       )}

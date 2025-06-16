@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useBotpressClient } from '../hooks/useBotpressClient';
 import { 
   Sheet, 
@@ -31,6 +31,8 @@ export default function ConversationDetail({ botId, conversationId, onClose, ope
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   
   const client = useBotpressClient(botId);
 
@@ -57,13 +59,42 @@ export default function ConversationDetail({ botId, conversationId, onClose, ope
     }
   }, [client, conversationId, open]);
 
+  // Scroll to bottom when messages load
+  useEffect(() => {
+    if (messages.length > 0 && !loading) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, loading]);
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
   };
+  
+  // Group messages that are sent close together in time (within 2 minutes)
+  const groupedMessages = messages.slice().reverse().reduce((groups: Message[][], message) => {
+    const lastGroup = groups[groups.length - 1];
+    if (!lastGroup) {
+      return [[message]];
+    }
+    
+    const lastMessage = lastGroup[lastGroup.length - 1];
+    const messageTime = new Date(message.createdAt).getTime();
+    const lastMessageTime = new Date(lastMessage.createdAt).getTime();
+    const sameDirection = message.direction === lastMessage.direction;
+    const closeInTime = Math.abs(messageTime - lastMessageTime) < 2 * 60 * 1000; // 2 minutes
+    
+    if (sameDirection && closeInTime) {
+      lastGroup.push(message);
+      return groups;
+    } else {
+      return [...groups, [message]];
+    }
+  }, []);
 
-  return (    <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <SheetContent side="right" className="w-full md:max-w-md lg:max-w-xl xl:max-w-2xl">
-        <SheetHeader className="pb-4 border-b">
+  return (
+    <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <SheetContent side="right" className="w-full md:max-w-xl lg:max-w-2xl xl:max-w-4xl p-0 overflow-hidden">
+        <SheetHeader className="sticky top-0 z-10 bg-background p-4 border-b">
           <div className="flex items-center justify-between">
             <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
               <ArrowLeft className="h-4 w-4" />
@@ -83,7 +114,7 @@ export default function ConversationDetail({ botId, conversationId, onClose, ope
           </SheetDescription>
         </SheetHeader>
         
-        <div className="mt-6">
+        <div className="sheet-scrollable-content py-6 px-4" ref={messagesContainerRef}>
           {error && (
             <div className="rounded-md bg-red-50 p-4 mb-4">
               <div className="flex">
@@ -104,62 +135,79 @@ export default function ConversationDetail({ botId, conversationId, onClose, ope
               No messages found in this conversation.
             </div>
           ) : (
-            <div className="space-y-4">
-              {messages.slice().reverse().map((message) => (
-                <Card 
-                  key={message.id} 
-                  className={`overflow-hidden ${
-                    message.direction === 'incoming' ? 'border-blue-200 bg-blue-50' : 'border-green-200 bg-green-50'
-                  }`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center">
-                        {message.direction === 'incoming' ? (
-                          <User className="h-4 w-4 mr-1 text-blue-700" />
-                        ) : (
-                          <Bot className="h-4 w-4 mr-1 text-green-700" />
-                        )}
-                        <span className={`text-sm font-medium ${
-                          message.direction === 'incoming' ? 'text-blue-700' : 'text-green-700'
-                        }`}>
-                          {message.direction === 'incoming' ? 'User' : 'Bot'}
-                        </span>
-                      </div>
-                      <div className="flex items-center text-muted-foreground text-xs">
-                        <Clock className="h-3 w-3 mr-1" />
-                        {formatDate(message.createdAt)}
-                      </div>
+            <div className="space-y-6">
+              {groupedMessages.map((group, groupIndex) => {
+                const direction = group[0].direction;
+                return (
+                  <div 
+                    key={groupIndex}
+                    className={`flex message-fade-in ${direction === 'incoming' ? 'justify-start' : 'justify-end'}`}
+                  >
+                    <div className={`max-w-[85%] space-y-2 ${direction === 'incoming' ? 'mr-auto' : 'ml-auto'}`}>
+                      {group.map((message, messageIndex) => (
+                        <Card 
+                          key={message.id} 
+                          className={`overflow-hidden ${
+                            message.direction === 'incoming' 
+                              ? 'conversation-message-user' 
+                              : 'conversation-message-bot'
+                          } ${messageIndex === 0 ? 'mb-1' : 'mt-1 mb-1'}`}
+                        >
+                          <CardContent className="p-3">
+                            {messageIndex === 0 && (
+                              <div className="flex items-center justify-between mb-2 text-xs">
+                                <div className="flex items-center">
+                                  {message.direction === 'incoming' ? (
+                                    <User className="h-4 w-4 mr-1 text-blue-700" />
+                                  ) : (
+                                    <Bot className="h-4 w-4 mr-1 text-green-700" />
+                                  )}
+                                  <span className={`font-medium ${
+                                    message.direction === 'incoming' ? 'text-blue-700' : 'text-green-700'
+                                  }`}>
+                                    {message.direction === 'incoming' ? 'User' : 'Bot'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center text-muted-foreground">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  {formatDate(message.createdAt)}
+                                </div>
+                              </div>
+                            )}
+                            
+                            <div>
+                              {message.payload.text ? (
+                                <p className="text-sm whitespace-pre-wrap">{message.payload.text}</p>
+                              ) : (
+                                <div className="text-xs text-muted-foreground italic">
+                                  Complex message type: {message.payload.type || 'unknown'}
+                                </div>
+                              )}
+                            </div>
+                            
+                            {message.payload.type && message.payload.type !== 'text' && (
+                              <div className="mt-2 pt-2 border-t border-gray-200">
+                                <details>
+                                  <summary className="text-xs cursor-pointer text-blue-600 hover:text-blue-800">
+                                    <span className="flex items-center">
+                                      <ExternalLink className="h-3 w-3 mr-1" />
+                                      View full payload
+                                    </span>
+                                  </summary>
+                                  <pre className="mt-2 p-2 bg-gray-800 text-gray-100 rounded text-xs overflow-auto max-h-40">
+                                    {JSON.stringify(message.payload, null, 2)}
+                                  </pre>
+                                </details>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
-                    
-                    <div className="mt-2">
-                      {message.payload.text ? (
-                        <p className="text-sm">{message.payload.text}</p>
-                      ) : (
-                        <div className="text-xs text-muted-foreground italic">
-                          Complex message type: {message.payload.type || 'unknown'}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {message.payload.type && message.payload.type !== 'text' && (
-                      <div className="mt-2 pt-2 border-t border-gray-200">
-                        <details>
-                          <summary className="text-xs cursor-pointer text-blue-600 hover:text-blue-800">
-                            <span className="flex items-center">
-                              <ExternalLink className="h-3 w-3 mr-1" />
-                              View full payload
-                            </span>
-                          </summary>
-                          <pre className="mt-2 p-2 bg-gray-800 text-gray-100 rounded text-xs overflow-auto">
-                            {JSON.stringify(message.payload, null, 2)}
-                          </pre>
-                        </details>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
             </div>
           )}
         </div>
