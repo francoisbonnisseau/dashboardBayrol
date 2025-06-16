@@ -1,0 +1,43 @@
+/* Custom app styles - most styling is handled by Tailwind and shadcn */
+.app-header {
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary)) 100%);
+}
+
+/* Ensure buttons have visible text */
+button {
+  color: inherit; 
+}
+
+.settings-btn {
+  background-color: #2563eb !important; /* blue-600 */
+  color: white !important;
+  font-weight: 500;
+}
+
+.settings-btn:hover {
+  background-color: #1d4ed8 !important; /* blue-700 */
+}
+
+/* Smooth transitions for interactive elements */
+.card-hover {
+  transition: all 0.2s ease-in-out;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -8px hsl(var(--primary) / 0.3);
+}
+
+/* Loading animation for async content */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
+}
+
+.loading-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
