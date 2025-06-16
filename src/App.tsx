@@ -1,29 +1,44 @@
 import { useState } from 'react';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navigation from './components/Navigation';
 import ConversationsList from './components/ConversationsList';
 import SentimentAnalysis from './components/SentimentAnalysis';
 import Settings from './components/Settings';
+import LoginPage from './components/LoginPage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { Toaster } from 'sonner';
 import './App.css';
 
 function AppContent() {
   const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'settings'>('conversations');
   const { isConfigured } = useSettings();
+  const { isAuthenticated, userRole, logout } = useAuth();
   
   console.log('Current view:', activeView, 'isConfigured:', isConfigured);
+  console.log('Auth state:', { isAuthenticated, userRole });
 
   // Function to directly navigate to settings without restrictions
   const goToSettings = () => {
     setActiveView('settings');
   };
 
+  // If not authenticated, show login page
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
   return (
     <div className="min-h-screen bg-background w-full">
-      {/* Navigation always visible */}
-      <Navigation activeView={activeView} onViewChange={setActiveView} />
+      {/* Navigation always visible when authenticated */}
+      <Navigation 
+        activeView={activeView} 
+        onViewChange={setActiveView} 
+        userRole={userRole} 
+        onLogout={logout} 
+      />
       
       {/* Main content */}
       <main className="w-full">
@@ -85,15 +100,20 @@ function AppContent() {
         
         {activeView === 'conversations' && isConfigured && <ConversationsList />}
       </main>
+      
+      {/* Toast notifications */}
+      <Toaster position="top-center" />
     </div>
   );
 }
 
 function App() {
   return (
-    <SettingsProvider>
-      <AppContent />
-    </SettingsProvider>
+    <AuthProvider>
+      <SettingsProvider>
+        <AppContent />
+      </SettingsProvider>
+    </AuthProvider>
   );
 }
 
