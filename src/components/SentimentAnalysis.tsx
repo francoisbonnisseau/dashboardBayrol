@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { RefreshCw, AlertCircle, BarChart3, ThumbsUp, ThumbsDown, CheckCircle2, XCircle } from 'lucide-react';
+import { RefreshCw, BarChart3, ThumbsUp, ThumbsDown, CheckCircle2, XCircle } from 'lucide-react';
+import ConversationDetail from './ConversationDetail';
 
 const TABLE_NAME = 'Int_Connor_Conversations_Table';
 
@@ -41,27 +42,7 @@ interface TableResponse {
   indexing: number;
 }
 
-interface FindTableRowsResponse {
-  rows: Array<{
-    id: number;
-    createdAt: string;
-    updatedAt: string;
-    computed?: Record<string, any>;
-    stale?: string[];
-    similarity?: number;
-    topics?: string;
-    summary?: string;
-    resolved?: boolean;
-    sentiment?: string;
-    transcript?: string;
-    escalations?: string[];
-    conversationId?: string;
-  }>;
-  hasMore: boolean;
-  offset: number;
-  limit: number;
-  warnings?: string[];
-}
+// Interface definitions removed
 
 export default function SentimentAnalysis() {
   const { settings } = useSettings();
@@ -70,11 +51,14 @@ export default function SentimentAnalysis() {
   const [tableInfo, setTableInfo] = useState<TableResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Filter states
+    // Filter states
   const [sentimentFilter, setSentimentFilter] = useState<string | null>(null);
   const [showResolved, setShowResolved] = useState<boolean>(false);
-    const client = useBotpressClient(selectedBotId);
+  // Conversation detail states
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [conversationSheetOpen, setConversationSheetOpen] = useState<boolean>(false);
+  
+  const client = useBotpressClient(selectedBotId);
   
   // Set default bot if none selected
   useEffect(() => {
@@ -218,8 +202,12 @@ export default function SentimentAnalysis() {
       default:
         return <BarChart3 className="h-3.5 w-3.5" />;
     }
-  };
-
+  };  // Handle row click to show conversation
+  const handleRowClick = useCallback((conversationId: string) => {
+    setSelectedConversationId(conversationId);
+    setConversationSheetOpen(true);
+  }, []);
+  
   const selectedBot = settings.bots.find(bot => bot.botId === selectedBotId);
 
   if (!settings.bots.some(bot => bot.botId)) {
@@ -342,27 +330,26 @@ export default function SentimentAnalysis() {
               </CardContent>
             </Card>
           ) : (
-            <div className="border rounded-md overflow-hidden">
-              <Table className="w-full">
+            <div className="border rounded-md overflow-hidden">              <Table className="w-full">
                 <TableHeader className="bg-muted/30">
                   <TableRow>
-                    <TableHead className="w-[15%]">Created At</TableHead>
-                    <TableHead className="w-[15%]">Updated At</TableHead>
-                    <TableHead className="w-[15%]">Topics</TableHead>
-                    <TableHead className="w-[20%]">Summary</TableHead>
+                    <TableHead className="w-[20%]">Date</TableHead>
+                    <TableHead className="w-[25%]">Topics</TableHead>
                     <TableHead className="w-[10%]">Resolved</TableHead>
-                    <TableHead className="w-[15%]">Sentiment</TableHead>
-                    <TableHead className="w-[10%]">ConversationId</TableHead>
+                    <TableHead className="w-[25%]">Sentiment</TableHead>
+                    <TableHead className="w-[20%]">ConversationId</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {filteredRows.map((row) => (
-                    <TableRow key={row.id} className="hover:bg-muted/50">
-                      <TableCell className="text-sm">{formatDate(row.createdAt)}</TableCell>
-                      <TableCell className="text-sm">{formatDate(row.updatedAt)}</TableCell>
-                      <TableCell className="font-medium">{row.topics || '—'}</TableCell>
-                      <TableCell className="text-sm">
-                        <div className="line-clamp-2">{row.summary || '—'}</div>
+                <TableBody>                  {filteredRows.map((row) => (
+                    <TableRow 
+                      key={row.id} 
+                      className="hover:bg-muted/50 cursor-pointer" 
+                      onClick={() => handleRowClick(row.conversationId)}
+                    >                      <TableCell className="text-sm">{formatDate(row.updatedAt)}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="max-w-[200px] truncate" title={row.topics || ''}>
+                          {row.topics || '—'}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {row.resolved ? 
@@ -401,6 +388,18 @@ export default function SentimentAnalysis() {
           <div>Stale: {tableInfo.stale}</div>
           <div>Indexing: {tableInfo.indexing}</div>
         </div>
+      )}
+        {/* Conversation details using the unified ConversationDetail component */}
+      {selectedConversationId && (
+        <ConversationDetail
+          botId={selectedBotId}
+          conversationId={selectedConversationId}
+          open={conversationSheetOpen}
+          onClose={() => {
+            setConversationSheetOpen(false);
+            setSelectedConversationId(null);
+          }}
+        />
       )}
     </div>
   );
