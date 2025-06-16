@@ -20,20 +20,20 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background w-full">
       {/* Navigation always visible */}
       <Navigation activeView={activeView} onViewChange={setActiveView} />
       
       {/* Main content */}
-      <main>
+      <main className="w-full">
         {/* Always show selected view regardless of configuration */}
         {activeView === 'settings' ? (
           <Settings />
         ) : (
           !isConfigured ? (
             /* Welcome screen for unconfigured app */
-            <div className="container mx-auto max-w-6xl px-4 py-12">
-              <div className="max-w-4xl mx-auto">
+            <div className="flex justify-center w-full px-6 py-12">
+              <div className="w-full max-w-4xl">
                 <Card>
                   <CardHeader className="text-center">
                     <CardTitle className="text-2xl">Welcome to Botpress Dashboard</CardTitle>

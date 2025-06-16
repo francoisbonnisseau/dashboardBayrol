@@ -34,7 +34,7 @@ export default function Settings() {
     }));
   };
 
-  return (    <div className="container mx-auto max-w-6xl px-4 py-6 space-y-6">
+  return (    <div className="w-full px-6 py-6 space-y-6">
       <div className="flex items-center gap-2 mb-6">
         <SettingsIcon className="h-6 w-6" />
         <h1 className="text-3xl font-bold">Settings</h1>

@@ -67,7 +67,7 @@ export default function ConversationsList() {
   const selectedBot = settings.bots.find(bot => bot.botId === selectedBotId);
 
   if (!settings.bots.some(bot => bot.botId)) {
-    return (      <div className="container mx-auto max-w-6xl px-4 py-6">
+    return (      <div className="w-full px-6 py-6">
         <Card>
           <CardHeader>
             <CardTitle>No Bots Configured</CardTitle>
@@ -80,7 +80,7 @@ export default function ConversationsList() {
     );
   }
 
-  return (    <div className="container mx-auto max-w-6xl px-4 py-6 space-y-6">
+  return (    <div className="w-full px-6 py-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-6 w-6" />
@@ -141,9 +141,9 @@ export default function ConversationsList() {
         <div className="flex items-center justify-center py-12">
           <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      ) : (        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      ) : (        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {conversations.length === 0 ? (
-            <Card className="md:col-span-2 xl:col-span-3">
+            <Card className="md:col-span-2 lg:col-span-3 xl:col-span-4 2xl:col-span-5">
               <CardContent className="pt-6 text-center text-muted-foreground">
                 {!client ? 'Select a bot to view conversations' : 'No conversations found'}
               </CardContent>

@@ -8,7 +8,7 @@ interface NavigationProps {
 
 export default function Navigation({ activeView, onViewChange }: NavigationProps) {
   return (
-    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">      <div className="container mx-auto max-w-6xl px-4">
+    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">      <div className="w-full px-6">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-2">
