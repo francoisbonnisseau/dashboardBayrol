@@ -5,7 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MessageCircle, RefreshCw, ChevronRight, Eye, AlertCircle } from 'lucide-react';
+import { MessageCircle, RefreshCw, ChevronRight, Eye, AlertCircle, CalendarRange } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
+import { addMonths, startOfDay, endOfDay, isAfter, isBefore, parseISO } from 'date-fns';
 import ConversationDetail from './ConversationDetail';
 import type { Conversation } from '../types';
 
@@ -25,6 +27,14 @@ export default function ConversationsList() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [showEmptyConversations, setShowEmptyConversations] = useState<boolean>(false);
   
+  // Date filter states
+  const [startDate, setStartDate] = useState<Date | undefined>(() => {
+    // Default to 1 month ago
+    return addMonths(new Date(), -1);
+  });
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  const [useTimeFilter, setUseTimeFilter] = useState<boolean>(true);
+  
   const client = useBotpressClient(selectedBotId);
 
   // Set default bot if none selected
@@ -36,19 +46,33 @@ export default function ConversationsList() {
       }
     }
   }, [settings.bots, selectedBotId]);  
-  
-  const fetchConversations = useCallback(async (token?: string, append = false) => {
+    const fetchConversations = useCallback(async (token?: string, append = false) => {
     if (!client) return;
 
     setLoading(true);
     setError(null);
     
     try {
-      const response = await client.listConversations({
+      // Prepare API request parameters
+      const params: any = {
         sortField: 'updatedAt',
         sortDirection: 'desc',
         nextToken: token
-      });
+      };
+
+      // Add date filters to API request if enabled and dates are set
+      // Note: This assumes the Botpress API supports these parameters
+      // If it doesn't, the client-side filtering will still work
+      if (useTimeFilter) {
+        if (startDate) {
+          params.startDate = startOfDay(startDate).toISOString();
+        }
+        if (endDate) {
+          params.endDate = endOfDay(endDate).toISOString(); 
+        }
+      }
+      
+      const response = await client.listConversations(params);
       
       const conversationsData = response.conversations || [];
         if (append) {
@@ -65,7 +89,7 @@ export default function ConversationsList() {
     } finally {
       setLoading(false);
     }
-  }, [client]);  
+  }, [client, useTimeFilter, startDate, endDate]);
     // Check if conversations have messages
   const checkConversationsForMessages = useCallback(async () => {
     if (!client || conversations.length === 0) return;
@@ -97,8 +121,7 @@ export default function ConversationsList() {
               };
             }
           } catch (err) {
-            console.error(`Error checking messages for conversation ${conversation.id}:`, err);
-            // Mark as checked with no messages on error to avoid repeated attempts
+            console.error(`Error checking messages for conversation ${conversation.id}:`, err);            // Mark as checked with no messages on error to avoid repeated attempts
             const index = updatedConversations.findIndex(c => c.id === conversation.id);
             if (index !== -1) {
               updatedConversations[index] = {
@@ -117,12 +140,12 @@ export default function ConversationsList() {
     setFilterLoading(false);
   }, [client, conversations]);
   
-  // Fetch conversations when client changes
+  // Fetch conversations when client or date filters change
   useEffect(() => {
     if (client) {
       fetchConversations(undefined, false);
     }
-  }, [client, fetchConversations]);
+  }, [client, fetchConversations, useTimeFilter, startDate, endDate]);
   
   // Check for messages when conversations change
   useEffect(() => {
@@ -143,10 +166,29 @@ export default function ConversationsList() {
   };
 
   const selectedBot = settings.bots.find(bot => bot.botId === selectedBotId);
-    // Determine which conversations to display
-  const displayConversations = showEmptyConversations 
-    ? conversations 
-    : conversations.filter(c => c.hasMessages === true);
+  // Filter conversations by date range and by messages
+  const displayConversations = conversations
+    .filter(conversation => {
+      // Apply date filters if enabled
+      if (useTimeFilter && (startDate || endDate)) {
+        const conversationDate = parseISO(conversation.createdAt);
+        
+        if (startDate && isBefore(conversationDate, startOfDay(startDate))) {
+          return false;
+        }
+        
+        if (endDate && isAfter(conversationDate, endOfDay(endDate))) {
+          return false;
+        }
+      }
+      
+      // Filter empty conversations if needed
+      if (!showEmptyConversations && conversation.hasMessages !== true) {
+        return false;
+      }
+      
+      return true;
+    });
 
   // Calculate loading and filtering progress
   const checkedCount = conversations.filter(c => c.isChecked).length;
@@ -166,55 +208,140 @@ export default function ConversationsList() {
       </div>
     );
   }
-
   return (
     <div className="w-full px-6 py-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="h-6 w-6" />
-          <h1 className="text-2xl font-bold">Conversations</h1>
-          {selectedBot && (
-            <span className="text-muted-foreground ml-2">
-              for <span className="font-medium">{selectedBot.name}</span>
-            </span>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <Select value={selectedBotId} onValueChange={setSelectedBotId}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Select a bot" />
-            </SelectTrigger>
-            <SelectContent>
-              {settings.bots
-                .filter(bot => bot.botId)
-                .map((bot) => (
-                  <SelectItem key={bot.id} value={bot.botId}>
-                    {bot.name}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-          
+      <div className="flex flex-col gap-4">
+        {/* Header with bot selection */}
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowEmptyConversations(!showEmptyConversations)}
-              className="flex items-center gap-1"
-            >
-              {showEmptyConversations ? "Hide Empty" : "Show All"}
-            </Button>
+            <MessageCircle className="h-6 w-6" />
+            <h1 className="text-2xl font-bold">Conversations</h1>
+            {selectedBot && (
+              <span className="text-muted-foreground ml-2">
+                for <span className="font-medium">{selectedBot.name}</span>
+              </span>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <Select value={selectedBotId} onValueChange={setSelectedBotId}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Select a bot" />
+              </SelectTrigger>
+              <SelectContent>
+                {settings.bots
+                  .filter(bot => bot.botId)
+                  .map((bot) => (
+                    <SelectItem key={bot.id} value={bot.botId}>
+                      {bot.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
             
-            <Button
-              onClick={() => fetchConversations(undefined, false)}
-              disabled={loading || !client}
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowEmptyConversations(!showEmptyConversations)}
+                className="flex items-center gap-1"
+              >
+                {showEmptyConversations ? "Hide Empty" : "Show All"}
+              </Button>
+              
+              <Button
+                onClick={() => fetchConversations(undefined, false)}
+                disabled={loading || !client}
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
+          </div>
+        </div>
+          {/* Date filter controls */}
+        <div className="flex flex-wrap items-center gap-4 border rounded-md p-4 bg-muted/10">
+          <div className="flex items-center gap-2 mr-2">
+            <div className="flex items-center">
+              <input 
+                type="checkbox" 
+                id="dateFilterToggle"
+                checked={useTimeFilter} 
+                onChange={() => setUseTimeFilter(!useTimeFilter)} 
+                className="mr-2 h-4 w-4 rounded border-gray-300 text-primary"
+              />
+              <label 
+                htmlFor="dateFilterToggle" 
+                className={`text-sm font-medium cursor-pointer ${useTimeFilter ? "text-primary" : "text-muted-foreground"}`}
+              >
+                Filter by date range
+              </label>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap flex-1 gap-4 items-center">
+            <div className="flex gap-3 items-center">
+              <div className="w-40">
+                <DatePicker
+                  date={startDate}
+                  setDate={setStartDate}
+                  placeholder="From date"
+                  disabled={!useTimeFilter}
+                  className="h-9"
+                />
+              </div>
+              <span className="text-muted-foreground">to</span>
+              <div className="w-40">
+                <DatePicker
+                  date={endDate}
+                  setDate={setEndDate}
+                  placeholder="To date"
+                  disabled={!useTimeFilter}
+                  className="h-9"
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-2 ml-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!useTimeFilter}
+                onClick={() => {
+                  setStartDate(addMonths(new Date(), -1));
+                  setEndDate(new Date());
+                }}
+                className="whitespace-nowrap h-9"
+              >
+                Last 30 days
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!useTimeFilter}
+                onClick={() => {
+                  setStartDate(addMonths(new Date(), -3));
+                  setEndDate(new Date());
+                }}
+                className="whitespace-nowrap h-9"
+              >
+                Last 90 days
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!useTimeFilter || (!startDate && !endDate)}
+                onClick={() => {
+                  setStartDate(undefined);
+                  setEndDate(undefined);
+                }}
+                className="whitespace-nowrap h-9"
+              >
+                Clear dates
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -234,9 +361,7 @@ export default function ConversationsList() {
             Showing {conversations.filter(c => c.hasMessages).length} of {conversations.length} conversations with messages
           </span>
         </div>
-      )}
-
-      {error && (
+      )}      {error && (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-red-700">
@@ -256,7 +381,28 @@ export default function ConversationsList() {
           {displayConversations.length === 0 ? (
             <Card>
               <CardContent className="pt-6 text-center text-muted-foreground">
-                {!client ? 'Select a bot to view conversations' : filterLoading ? 'Filtering conversations...' : 'No conversations found with messages'}
+                {!client ? (
+                  'Select a bot to view conversations'
+                ) : filterLoading ? (
+                  'Filtering conversations...'
+                ) : useTimeFilter && (startDate || endDate) ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <CalendarRange className="h-12 w-12 text-muted-foreground/50" />
+                    <p>No conversations found within the selected date range</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setStartDate(addMonths(new Date(), -1));
+                        setEndDate(new Date());
+                      }}
+                    >
+                      Reset to last 30 days
+                    </Button>
+                  </div>
+                ) : (
+                  'No conversations found with messages'
+                )}
               </CardContent>
             </Card>
           ) : (
