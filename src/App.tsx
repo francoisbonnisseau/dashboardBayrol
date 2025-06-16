@@ -62,7 +62,7 @@ function AppContent() {
             <div className="w-full max-w-4xl">
               <Card>
                 <CardHeader className="text-center">
-                  <CardTitle className="text-2xl">Welcome to Botpress Dashboard</CardTitle>
+                  <CardTitle className="text-2xl">Welcome to Bayrol Analytics Dashboard</CardTitle>
                   <CardDescription>
                     Get started by configuring your Botpress workspace and bot settings
                   </CardDescription>

@@ -13,7 +13,7 @@ export default function Navigation({ activeView, onViewChange }: NavigationProps
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-2">
               <MessageCircle className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold">Botpress Dashboard</span>
+              <span className="text-xl font-bold">Bayrol Dashboard</span>
             </div>
               <div className="flex items-center space-x-1">
               <Button

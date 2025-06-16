@@ -1,0 +1,10 @@
+/* Fix for transparent select dropdown backgrounds */
+.select-content {
+  background-color: white !important; /* Light theme */
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+[data-slot="select-content"] {
+  background-color: white !important; /* Explicit override */
+}
