@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navigation from './components/Navigation';
 import ConversationsList from './components/ConversationsList';
 import SentimentAnalysis from './components/SentimentAnalysis';
+import Analysis from './components/Analysis';
 import Settings from './components/Settings';
 import LoginPage from './components/LoginPage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +14,7 @@ import { Toaster } from 'sonner';
 import './App.css';
 
 function AppContent() {
-  const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'settings'>('conversations');
+  const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'settings' | 'analysis'>('conversations');
   const { isConfigured } = useSettings();
   const { isAuthenticated, userRole, logout } = useAuth();
   
@@ -44,9 +45,11 @@ function AppContent() {
       <main className="w-full">
         {activeView === 'settings' && <Settings />}
         
+        {activeView === 'analysis' && isConfigured && userRole === 'admin' && <Analysis />}
+        
         {activeView === 'sentiment' && isConfigured && <SentimentAnalysis />}
         
-        {activeView === 'sentiment' && !isConfigured && (
+        {(activeView === 'sentiment' || activeView === 'analysis') && !isConfigured && (
           <div className="flex justify-center w-full px-6 py-12">
             <div className="w-full max-w-4xl">
               <Card>

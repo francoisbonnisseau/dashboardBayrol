@@ -1,11 +1,11 @@
-import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, UserIcon } from 'lucide-react';
+import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, UserIcon, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { UserRole } from '@/contexts/AuthContext';
 
 interface NavigationProps {
-  activeView: 'conversations' | 'sentiment' | 'settings';
-  onViewChange: (view: 'conversations' | 'sentiment' | 'settings') => void;
+  activeView: 'conversations' | 'sentiment' | 'settings' | 'analysis';
+  onViewChange: (view: 'conversations' | 'sentiment' | 'settings' | 'analysis') => void;
   userRole: UserRole;
   onLogout: () => void;
 }
@@ -19,8 +19,7 @@ export default function Navigation({ activeView, onViewChange, userRole, onLogou
             <div className="flex items-center space-x-2">
               <MessageCircle className="h-6 w-6 text-primary" />
               <span className="text-xl font-bold">Bayrol Dashboard</span>
-            </div>
-            <div className="flex items-center space-x-1">
+            </div>            <div className="flex items-center space-x-1">
               <Button
                 variant={activeView === 'conversations' ? 'default' : 'ghost'}
                 size="sm"
@@ -40,6 +39,18 @@ export default function Navigation({ activeView, onViewChange, userRole, onLogou
                 <BarChart3 className="h-4 w-4" />
                 Sentiment
               </Button>
+              
+              {userRole === 'admin' && (
+                <Button
+                  variant={activeView === 'analysis' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => onViewChange('analysis')}
+                  className="flex items-center gap-2"
+                >
+                  <Brain className="h-4 w-4" />
+                  Analysis
+                </Button>
+              )}
               
               <Button
                 variant={activeView === 'settings' ? 'default' : 'ghost'}
