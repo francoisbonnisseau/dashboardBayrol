@@ -104,6 +104,18 @@
   max-height: calc(100vh - 80px);
   overflow-y: auto;
   padding-bottom: 20px;
+  background-color: #ffffff;
+}
+
+/* Fix SheetContent transparency issues */
+[data-slot="sheet-content"] {
+  background-color: #ffffff !important;
+}
+
+/* Ensure dialog and sheet backgrounds are solid */
+[data-radix-dialog-overlay], 
+[data-slot="sheet-overlay"] {
+  backdrop-filter: blur(2px);
 }
 
 /* Animation for new messages */

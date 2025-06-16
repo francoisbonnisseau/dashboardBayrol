@@ -90,11 +90,10 @@ export default function ConversationDetail({ botId, conversationId, onClose, ope
       return [...groups, [message]];
     }
   }, []);
-
   return (
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <SheetContent side="right" className="w-full md:max-w-xl lg:max-w-2xl xl:max-w-4xl p-0 overflow-hidden">
-        <SheetHeader className="sticky top-0 z-10 bg-background p-4 border-b">
+      <SheetContent side="right" className="w-full md:max-w-xl lg:max-w-2xl xl:max-w-4xl p-0 overflow-hidden bg-white shadow-xl border-l !bg-opacity-100">
+        <SheetHeader className="sticky top-0 z-10 bg-white p-4 border-b shadow-sm">
           <div className="flex items-center justify-between">
             <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
               <ArrowLeft className="h-4 w-4" />
@@ -114,7 +113,7 @@ export default function ConversationDetail({ botId, conversationId, onClose, ope
           </SheetDescription>
         </SheetHeader>
         
-        <div className="sheet-scrollable-content py-6 px-4" ref={messagesContainerRef}>
+        <div className="sheet-scrollable-content py-6 px-4 bg-white" ref={messagesContainerRef}>
           {error && (
             <div className="rounded-md bg-red-50 p-4 mb-4">
               <div className="flex">
