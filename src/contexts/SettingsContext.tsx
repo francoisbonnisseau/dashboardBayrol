@@ -9,14 +9,14 @@ interface SettingsContextType {
 }
 
 const defaultBots: BotConfig[] = [
-  { id: 'fr', name: 'FR version', botId: '' },
-  { id: 'de', name: 'DE version', botId: '' },
-  { id: 'es', name: 'ES version', botId: '' },
+  { id: 'fr', name: 'FR version', botId: import.meta.env.VITE_BOTPRESS_BOT_ID_FR || '' },
+  { id: 'de', name: 'DE version', botId: import.meta.env.VITE_BOTPRESS_BOT_ID_DE || '' },
+  { id: 'es', name: 'ES version', botId: import.meta.env.VITE_BOTPRESS_BOT_ID_ES || '' },
 ];
 
 const defaultSettings: AppSettings = {
-  token: '',
-  workspaceId: '',
+  token: import.meta.env.VITE_BOTPRESS_TOKEN || '',
+  workspaceId: import.meta.env.VITE_BOTPRESS_WORKSPACE_ID || '',
   bots: defaultBots,
 };
 

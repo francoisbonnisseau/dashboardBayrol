@@ -8,6 +8,7 @@ A modern React dashboard for visualizing Botpress bot conversations across multi
 - **Real-time Data**: Fetch and display conversations from Botpress API
 - **Modern UI**: Built with React, Vite, TailwindCSS, and shadcn/ui components
 - **Persistent Settings**: Your configuration is saved locally
+- **Environment Variables Support**: Pre-configure settings for easy sharing
 - **Responsive Design**: Works on desktop and mobile devices
 
 ## Getting Started
@@ -17,6 +18,26 @@ A modern React dashboard for visualizing Botpress bot conversations across multi
 - Node.js (v18 or higher)
 - pnpm package manager
 - A Botpress account with API access
+
+### Environment Variables
+
+The dashboard supports environment variables for pre-configuring Botpress settings. This allows you to share the dashboard without requiring users to enter settings each time.
+
+1. Copy the `.env.example` file to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Fill in your Botpress credentials in the `.env` file:
+   ```env
+   VITE_BOTPRESS_TOKEN=your_token_here
+   VITE_BOTPRESS_WORKSPACE_ID=your_workspace_id
+   VITE_BOTPRESS_BOT_ID_FR=french_bot_id
+   VITE_BOTPRESS_BOT_ID_DE=german_bot_id
+   VITE_BOTPRESS_BOT_ID_ES=spanish_bot_id
+   ```
+
+3. Users can still override these settings via the Settings tab in the UI if needed.
 
 ### Installation
 
