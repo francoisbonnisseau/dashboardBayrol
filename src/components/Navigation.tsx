@@ -1,4 +1,4 @@
-import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, UserIcon, Brain } from 'lucide-react';
+import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { UserRole } from '@/contexts/AuthContext';

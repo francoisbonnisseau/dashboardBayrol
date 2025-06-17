@@ -10,8 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, ArrowRight, Brain, CalendarIcon, Search, Filter, Loader2, MessagesSquare } from 'lucide-react';
-import { format, subDays } from 'date-fns';
+import { ArrowLeft, ArrowRight, Brain, Search, Loader2, MessagesSquare } from 'lucide-react';
+import { subDays } from 'date-fns';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 
@@ -164,8 +164,7 @@ export default function Analysis() {
       try {
         // Using listMessages to get conversation messages
         const response = await client.listMessages({ 
-          conversationId: conversation.conversationId,
-          limit: 100
+          conversationId: conversation.conversationId
         });
         
         if (response && response.messages) {

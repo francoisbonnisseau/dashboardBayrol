@@ -9,7 +9,7 @@ import Settings from './components/Settings';
 import LoginPage from './components/LoginPage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { Settings as SettingsIcon } from 'lucide-react';
 import { Toaster } from 'sonner';
 import './App.css';
 
