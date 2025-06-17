@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { RefreshCw, BarChart3, ThumbsUp, ThumbsDown, CheckCircle2, XCircle } from 'lucide-react';
+import { RefreshCw, BarChart3, ThumbsUp, ThumbsDown, CheckCircle2, XCircle, Download } from 'lucide-react';
 import ConversationDetail from './ConversationDetail';
 
 const TABLE_NAME = 'Int_Connor_Conversations_Table';
@@ -208,7 +208,83 @@ export default function SentimentAnalysis() {
     setConversationSheetOpen(true);
   }, []);
   
-  const selectedBot = settings.bots.find(bot => bot.botId === selectedBotId);
+  const selectedBot = settings.bots.find(bot => bot.botId === selectedBotId);  // Download conversations in JSON format with simplified structure
+  const downloadConversations = useCallback(async () => {
+    if (!client || filteredRows.length === 0) return;
+    
+    setLoading(true);
+    
+    try {
+      // Fetch full conversation details for each filtered conversation
+      const conversationsData = [];
+      
+      for (const row of filteredRows) {
+        try {
+          // Get messages for this conversation
+          const response = await client.listMessages({ 
+            conversationId: row.conversationId,
+            limit: 1000 // Get all messages
+          });
+            if (response && response.messages && response.messages.length > 1) {
+            // Only include conversations with more than one message
+            const conversation: Record<string, string> = {};
+            let messageIndex = 1;
+            
+            // Reverse messages to get chronological order (oldest first)
+            const orderedMessages = [...response.messages].reverse();
+            
+            // Build conversation object with user/bot alternating structure
+            orderedMessages.forEach((message: any) => {
+              const role = message.direction === 'incoming' ? 'user' : 'bot';
+              const key = `${role}${messageIndex}`;
+              conversation[key] = message.payload?.text || '';
+              
+              // Increment index for alternating messages
+              if (message.direction === 'outgoing') {
+                messageIndex++;
+              }
+            });
+            
+            conversationsData.push({
+              date: row.createdAt,
+              conversation: conversation
+            });
+          }
+        } catch (error) {
+          console.error(`Error fetching messages for conversation ${row.conversationId}:`, error);
+          // Skip conversations that can't be fetched
+        }
+      }
+      
+      // Create JSON content
+      const jsonContent = JSON.stringify(conversationsData, null, 2);
+      
+      // Create and download file
+      const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      
+      // Create filename with current date and filter info
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+      const sentimentStr = sentimentFilter ? `_${sentimentFilter.replace(' ', '-')}` : '_all-sentiments';
+      const resolvedStr = showResolved ? '_including-resolved' : '_unresolved-only';
+      const filename = `conversations_${dateStr}${sentimentStr}${resolvedStr}.json`;
+      
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Error downloading conversations:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [client, filteredRows, sentimentFilter, showResolved]);
 
   if (!settings.bots.some(bot => bot.botId)) {
     return (
@@ -263,9 +339,7 @@ export default function SentimentAnalysis() {
               Refresh
             </Button>
           </div>
-        </div>
-
-        {/* Filter controls */}
+        </div>        {/* Filter controls */}
         <div className="flex flex-wrap items-center gap-4 border rounded-md p-4 bg-muted/10">
           <div className="flex items-center gap-2 mr-4">
             <span className="text-sm font-medium">Filter by:</span>
@@ -302,6 +376,17 @@ export default function SentimentAnalysis() {
                 Show Resolved
               </label>
             </div>
+            
+            <Button
+              onClick={downloadConversations}
+              disabled={loading || !client || filteredRows.length === 0}
+              size="sm"
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Download ({filteredRows.length})
+            </Button>
           </div>
         </div>
       </div>
