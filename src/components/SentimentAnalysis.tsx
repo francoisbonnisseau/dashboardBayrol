@@ -80,7 +80,7 @@ export default function SentimentAnalysis() {
     try {      // Use the client.findTableRows method directly as shown in the demo code
       const { rows } = await client.findTableRows({
         table: TABLE_NAME,
-        limit: 100,
+        limit: 1000,
         offset: 0,
         filter: {
           // Filter by sentiment if needed

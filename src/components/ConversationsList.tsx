@@ -45,41 +45,38 @@ export default function ConversationsList() {
         setSelectedBotId(firstConfiguredBot.botId);
       }
     }
-  }, [settings.bots, selectedBotId]);  
-    const fetchConversations = useCallback(async (token?: string, append = false) => {
+  }, [settings.bots, selectedBotId]);  const fetchConversations = useCallback(async (token?: string, append = false) => {
     if (!client) return;
 
     setLoading(true);
     setError(null);
     
     try {
-      // Prepare API request parameters
+      // Use exact parameter names from API documentation
       const params: any = {
         sortField: 'updatedAt',
-        sortDirection: 'desc',
-        nextToken: token
+        sortDirection: 'desc'
       };
 
-      // Add date filters to API request if enabled and dates are set
-      // Note: This assumes the Botpress API supports these parameters
-      // If it doesn't, the client-side filtering will still work
-      if (useTimeFilter) {
-        if (startDate) {
-          params.startDate = startOfDay(startDate).toISOString();
-        }
-        if (endDate) {
-          params.endDate = endOfDay(endDate).toISOString(); 
-        }
+      // Add pagination token if provided
+      if (token) {
+        params.nextToken = token;
       }
+
+      console.log('Fetching conversations with params:', params);
       
       const response = await client.listConversations(params);
+      console.log('API Response:', { 
+        conversationCount: response.conversations?.length || 0, 
+        nextToken: response.meta?.nextToken 
+      });
       
       const conversationsData = response.conversations || [];
-        if (append) {
+      
+      if (append) {
         setConversations(prev => [...prev, ...conversationsData]);
       } else {
         setConversations(conversationsData);
-        // Reset all conversations with hasMessages to undefined
       }
       
       setNextToken(response.meta?.nextToken);
@@ -89,16 +86,90 @@ export default function ConversationsList() {
     } finally {
       setLoading(false);
     }
-  }, [client, useTimeFilter, startDate, endDate]);
-    // Check if conversations have messages
-  const checkConversationsForMessages = useCallback(async () => {
-    if (!client || conversations.length === 0) return;
+  }, [client]);
+
+  // Smart loading function that automatically fetches more conversations if needed
+  const smartFetchConversations = useCallback(async (targetCount = 10) => {
+    if (!client) return;
+
+    let allConversations: ConversationWithMessages[] = [];
+    let currentToken: string | undefined = undefined;
+    let iterations = 0;
+    const maxIterations = 10; // Safety limit to prevent infinite loops
+
+    setLoading(true);
+    setError(null);
+    
+    try {
+      while (iterations < maxIterations) {
+        // Fetch a batch of conversations
+        const params: any = {
+          sortField: 'updatedAt',
+          sortDirection: 'desc'
+        };
+
+        if (currentToken) {
+          params.nextToken = currentToken;
+        }
+
+        console.log(`Smart fetch iteration ${iterations + 1}, fetching with token:`, currentToken);
+        
+        const response = await client.listConversations(params);
+        const newConversations = response.conversations || [];
+        
+        if (newConversations.length === 0) {
+          console.log('No more conversations available');
+          break;
+        }
+
+        allConversations = [...allConversations, ...newConversations];
+        currentToken = response.meta?.nextToken;
+        
+        // If date filtering is enabled, check how many conversations match
+        if (useTimeFilter && (startDate || endDate)) {
+          const matchingConversations = allConversations.filter(conversation => {
+            const conversationDate = parseISO(conversation.createdAt);
+            const afterStartDate = !startDate || !isBefore(conversationDate, startOfDay(startDate));
+            const beforeEndDate = !endDate || !isAfter(conversationDate, endOfDay(endDate));
+            return afterStartDate && beforeEndDate;
+          });
+
+          console.log(`Found ${matchingConversations.length} matching conversations out of ${allConversations.length} total`);
+          
+          // If we have enough matching conversations or no more data, stop
+          if (matchingConversations.length >= targetCount || !currentToken) {
+            break;
+          }
+        } else {
+          // If no date filter, stop after we have enough conversations
+          if (allConversations.length >= targetCount || !currentToken) {
+            break;
+          }
+        }
+
+        iterations++;
+      }
+
+      setConversations(allConversations);
+      setNextToken(currentToken);
+      
+      console.log(`Smart fetch completed: ${allConversations.length} total conversations loaded in ${iterations + 1} iterations`);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch conversations');
+      console.error('Error in smart fetch:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [client, useTimeFilter, startDate, endDate]);// Remove date dependencies to fix circular dependency  // Check if conversations have messages - fixed to avoid circular dependency
+  const checkConversationsForMessages = useCallback(async (conversationsToCheck: ConversationWithMessages[]) => {
+    if (!client || conversationsToCheck.length === 0) return;
     
     setFilterLoading(true);
     
     // Process conversations in batches to avoid overwhelming the API
     const batchSize = 5;
-    const updatedConversations = [...conversations];
+    const updatedConversations = [...conversationsToCheck];
     
     for (let i = 0; i < updatedConversations.length; i += batchSize) {
       const batch = updatedConversations.slice(i, i + batchSize).filter(c => !c.isChecked);
@@ -107,7 +178,6 @@ export default function ConversationsList() {
       await Promise.all(
         batch.map(async (conversation) => {
           try {
-            // Botpress API might not support 'limit' param directly, so we'll just check if any messages exist
             const response = await client.listMessages({ 
               conversationId: conversation.id
             });
@@ -121,7 +191,8 @@ export default function ConversationsList() {
               };
             }
           } catch (err) {
-            console.error(`Error checking messages for conversation ${conversation.id}:`, err);            // Mark as checked with no messages on error to avoid repeated attempts
+            console.error(`Error checking messages for conversation ${conversation.id}:`, err);
+            // Mark as checked with no messages on error to avoid repeated attempts
             const index = updatedConversations.findIndex(c => c.id === conversation.id);
             if (index !== -1) {
               updatedConversations[index] = {
@@ -138,21 +209,37 @@ export default function ConversationsList() {
     }
     
     setFilterLoading(false);
-  }, [client, conversations]);
-  
-  // Fetch conversations when client or date filters change
+  }, [client]); // Remove conversations dependency to fix circular dependency
+  // Fetch conversations when client changes or when manually refreshed
   useEffect(() => {
     if (client) {
-      fetchConversations(undefined, false);
+      smartFetchConversations(10); // Try to get at least 10 conversations that match filters
     }
-  }, [client, fetchConversations, useTimeFilter, startDate, endDate]);
+  }, [client, smartFetchConversations]);
   
-  // Check for messages when conversations change
+  // Check for messages when conversations change - with proper parameter
   useEffect(() => {
     if (conversations.length > 0) {
-      checkConversationsForMessages();
+      checkConversationsForMessages(conversations);
     }
-  }, [conversations, checkConversationsForMessages]);
+  }, [conversations.length]); // Only depend on length to avoid infinite loops
+
+  // Handle date filter changes - separate from data fetching
+  useEffect(() => {
+    // Only trigger refresh if we have conversations loaded and date filter is enabled
+    if (conversations.length > 0 && useTimeFilter) {
+      console.log('Date filters changed, applying client-side filtering');
+    }
+  }, [useTimeFilter, startDate, endDate]);
+
+  // Manual refresh function for date filter changes
+  const refreshWithDateFilter = useCallback(() => {
+    if (client) {
+      console.log('Manual refresh triggered');
+      setConversations([]); // Clear existing conversations
+      smartFetchConversations(10); // Use smart fetch instead of basic fetch
+    }
+  }, [client, smartFetchConversations]);
 
   const formatDate = (dateString: string) => {
     // Return date in format: Jan 24, 2023, 15:30
@@ -165,19 +252,31 @@ export default function ConversationsList() {
     });
   };
 
-  const selectedBot = settings.bots.find(bot => bot.botId === selectedBotId);
-  // Filter conversations by date range and by messages
+  const selectedBot = settings.bots.find(bot => bot.botId === selectedBotId);  // Filter conversations by date range and by messages
   const displayConversations = conversations
     .filter(conversation => {
       // Apply date filters if enabled
       if (useTimeFilter && (startDate || endDate)) {
         const conversationDate = parseISO(conversation.createdAt);
         
-        if (startDate && isBefore(conversationDate, startOfDay(startDate))) {
-          return false;
+        // Check if conversation is within date range
+        const afterStartDate = !startDate || !isBefore(conversationDate, startOfDay(startDate));
+        const beforeEndDate = !endDate || !isAfter(conversationDate, endOfDay(endDate));
+        
+        // Log first few for debugging
+        if (conversations.indexOf(conversation) < 3) {
+          console.log(`Conversation ${conversation.id.substring(0, 8)}:`, {
+            createdAt: conversation.createdAt,
+            conversationDate: conversationDate.toISOString(),
+            startDate: startDate?.toISOString(),
+            endDate: endDate?.toISOString(),
+            afterStartDate,
+            beforeEndDate,
+            inDateRange: afterStartDate && beforeEndDate
+          });
         }
         
-        if (endDate && isAfter(conversationDate, endOfDay(endDate))) {
+        if (!afterStartDate || !beforeEndDate) {
           return false;
         }
       }
@@ -189,6 +288,27 @@ export default function ConversationsList() {
       
       return true;
     });
+  // Add debug logging to understand what's happening
+  const conversationsInDateRange = conversations.filter(conversation => {
+    if (!useTimeFilter || (!startDate && !endDate)) return true;
+    const conversationDate = parseISO(conversation.createdAt);
+    const afterStartDate = !startDate || !isBefore(conversationDate, startOfDay(startDate));
+    const beforeEndDate = !endDate || !isAfter(conversationDate, endOfDay(endDate));
+    return afterStartDate && beforeEndDate;
+  });
+
+  console.log('Filter Debug:', {
+    totalConversations: conversations.length,
+    useTimeFilter,
+    startDate: startDate?.toISOString(),
+    endDate: endDate?.toISOString(),
+    showEmptyConversations,
+    conversationsWithMessages: conversations.filter(c => c.hasMessages === true).length,
+    conversationsInDateRange: conversationsInDateRange.length,
+    conversationsInDateRangeWithMessages: conversationsInDateRange.filter(c => c.hasMessages === true).length,
+    displayConversations: displayConversations.length,
+    sampleConversationDates: conversations.slice(0, 3).map(c => ({ id: c.id.substring(0, 8), createdAt: c.createdAt }))
+  });
 
   // Calculate loading and filtering progress
   const checkedCount = conversations.filter(c => c.isChecked).length;
@@ -248,9 +368,8 @@ export default function ConversationsList() {
               >
                 {showEmptyConversations ? "Hide Empty" : "Show All"}
               </Button>
-              
-              <Button
-                onClick={() => fetchConversations(undefined, false)}
+                <Button
+                onClick={refreshWithDateFilter}
                 disabled={loading || !client}
                 size="sm"
                 className="flex items-center gap-2"
@@ -303,8 +422,7 @@ export default function ConversationsList() {
                 />
               </div>
             </div>
-            
-            <div className="flex gap-2 ml-auto">
+              <div className="flex gap-2 ml-auto">
               <Button
                 variant="outline"
                 size="sm"
@@ -327,8 +445,19 @@ export default function ConversationsList() {
                 }}
                 className="whitespace-nowrap h-9"
               >
-                Last 90 days
+                Last 3 months
               </Button>
+                <Button
+                onClick={refreshWithDateFilter}
+                disabled={loading || !client}
+                size="sm"
+                variant="default"
+                className="flex items-center gap-2 h-9"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                Apply Filters
+              </Button>
+              
               <Button
                 variant="outline"
                 size="sm"
@@ -353,15 +482,31 @@ export default function ConversationsList() {
           </div>
           <span className="text-xs text-blue-600">Only conversations with messages will be shown by default</span>
         </div>
-      )}
-      
-      {!filterLoading && !showEmptyConversations && checkedCount === conversations.length && conversations.length > 0 && (
+      )}      {!filterLoading && !showEmptyConversations && checkedCount === conversations.length && conversations.length > 0 && (
         <div className="bg-green-50 px-4 py-2 rounded-md flex items-center justify-between">
           <span className="text-sm text-green-700">
-            Showing {conversations.filter(c => c.hasMessages).length} of {conversations.length} conversations with messages
+            Loaded {conversations.length} conversations • 
+            {useTimeFilter && (startDate || endDate) && (
+              <>
+                {conversationsInDateRange.length} in date range • 
+                {conversationsInDateRange.filter(c => c.hasMessages === true).length} in date range with messages • 
+              </>
+            )}
+            Showing {displayConversations.length} after all filters •
+            {conversations.filter(c => c.hasMessages).length} total have messages
+            {useTimeFilter && (startDate || endDate) && (
+              <span className="ml-2 text-xs">
+                (Date: {startDate?.toLocaleDateString()} - {endDate?.toLocaleDateString()})
+              </span>
+            )}
           </span>
+          {displayConversations.length === 0 && conversations.length > 0 && (
+            <span className="text-xs text-orange-600 ml-2">
+              Try adjusting date range or include empty conversations
+            </span>
+          )}
         </div>
-      )}      {error && (
+      )}{error && (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-red-700">
@@ -371,10 +516,15 @@ export default function ConversationsList() {
           </CardContent>
         </Card>
       )}
-      
-      {loading && conversations.length === 0 ? (
-        <div className="flex items-center justify-center py-12">
+        {loading && conversations.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 gap-2">
           <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">
+            {useTimeFilter && (startDate || endDate) 
+              ? 'Smart loading conversations within date range...' 
+              : 'Loading conversations...'
+            }
+          </span>
         </div>
       ) : (
         <div className="w-full">
@@ -384,21 +534,38 @@ export default function ConversationsList() {
                 {!client ? (
                   'Select a bot to view conversations'
                 ) : filterLoading ? (
-                  'Filtering conversations...'
-                ) : useTimeFilter && (startDate || endDate) ? (
+                  'Filtering conversations...'                ) : useTimeFilter && (startDate || endDate) ? (
                   <div className="flex flex-col items-center gap-2">
                     <CalendarRange className="h-12 w-12 text-muted-foreground/50" />
                     <p>No conversations found within the selected date range</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => {
-                        setStartDate(addMonths(new Date(), -1));
-                        setEndDate(new Date());
-                      }}
-                    >
-                      Reset to last 30 days
-                    </Button>
+                    <p className="text-sm text-muted-foreground">
+                      Date range: {startDate?.toLocaleDateString()} - {endDate?.toLocaleDateString()}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {conversations.length > 0 && (
+                        <>Total loaded: {conversations.length} conversations (check console for date details)</>
+                      )}
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setStartDate(addMonths(new Date(), -1));
+                          setEndDate(new Date());
+                        }}
+                      >
+                        Reset to last 30 days                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setUseTimeFilter(false);
+                        }}
+                      >
+                        Disable date filter
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   'No conversations found with messages'
@@ -451,8 +618,7 @@ export default function ConversationsList() {
               </Table>
             </div>
           )}
-          
-          {nextToken && (
+            {nextToken && (
             <div className="flex justify-center mt-4">
               <Button
                 variant="outline"
@@ -460,11 +626,32 @@ export default function ConversationsList() {
                 disabled={loading}
                 className="flex items-center gap-2"
               >
-        {loading ? (
+                {loading ? (
                   <RefreshCw className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
                     Load More {!showEmptyConversations && "(With Messages Only)"}
+                    <ChevronRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* Smart load more for date filtering */}
+          {useTimeFilter && (startDate || endDate) && displayConversations.length < 5 && nextToken && (
+            <div className="flex justify-center mt-4">
+              <Button
+                variant="default"
+                onClick={() => smartFetchConversations(20)}
+                disabled={loading}
+                className="flex items-center gap-2"
+              >
+                {loading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    Load More Conversations in Date Range
                     <ChevronRight className="h-4 w-4" />
                   </>
                 )}
