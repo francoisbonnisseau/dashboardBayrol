@@ -222,8 +222,7 @@ export default function SentimentAnalysis() {
         try {
           // Get messages for this conversation
           const response = await client.listMessages({ 
-            conversationId: row.conversationId,
-            limit: 1000 // Get all messages
+            conversationId: row.conversationId
           });
             if (response && response.messages && response.messages.length > 1) {
             // Only include conversations with more than one message
