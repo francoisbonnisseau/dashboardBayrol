@@ -5,6 +5,7 @@ import Navigation from './components/Navigation';
 import ConversationsList from './components/ConversationsList';
 import SentimentAnalysis from './components/SentimentAnalysis';
 import Analysis from './components/Analysis';
+import Learnings from './components/Learnings';
 import Settings from './components/Settings';
 import LoginPage from './components/LoginPage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +15,7 @@ import { Toaster } from 'sonner';
 import './App.css';
 
 function AppContent() {
-  const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'settings' | 'analysis'>('conversations');
+  const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'settings' | 'analysis' | 'learnings'>('conversations');
   const { isConfigured } = useSettings();
   const { isAuthenticated, userRole, logout } = useAuth();
   
@@ -47,16 +48,18 @@ function AppContent() {
         
         {activeView === 'analysis' && isConfigured && userRole === 'admin' && <Analysis />}
         
+        {activeView === 'learnings' && isConfigured && <Learnings />}
+        
         {activeView === 'sentiment' && isConfigured && <SentimentAnalysis />}
         
-        {(activeView === 'sentiment' || activeView === 'analysis') && !isConfigured && (
+        {(activeView === 'sentiment' || activeView === 'analysis' || activeView === 'learnings') && !isConfigured && (
           <div className="flex justify-center w-full px-6 py-12">
             <div className="w-full max-w-4xl">
               <Card>
                 <CardHeader className="text-center">
                   <CardTitle className="text-2xl">Configuration Required</CardTitle>
                   <CardDescription>
-                    Please configure your Botpress workspace and bot settings before accessing sentiment analysis
+                    Please configure your Botpress workspace and bot settings before accessing sentiment analysis or learnings
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="text-center">
