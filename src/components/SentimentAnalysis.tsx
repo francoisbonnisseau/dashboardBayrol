@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DatePicker } from '@/components/ui/date-picker';
 import { RefreshCw, BarChart3, ThumbsUp, ThumbsDown, CheckCircle2, XCircle, Download } from 'lucide-react';
 import ConversationDetail from './ConversationDetail';
 
@@ -51,9 +52,11 @@ export default function SentimentAnalysis() {
   const [tableInfo, setTableInfo] = useState<TableResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-    // Filter states
+  // Filter states
   const [sentimentFilter, setSentimentFilter] = useState<string | null>(null);
   const [showResolved, setShowResolved] = useState<boolean>(false);
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   // Conversation detail states
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [conversationSheetOpen, setConversationSheetOpen] = useState<boolean>(false);
@@ -77,7 +80,20 @@ export default function SentimentAnalysis() {
     setLoading(true);
     setError(null);
     
-    try {      // Use the client.findTableRows method directly as shown in the demo code
+    try {
+      // Build date filter
+      const dateFilter: any = {};
+      if (startDate) {
+        dateFilter.$gte = startDate.toISOString();
+      }
+      if (endDate) {
+        // Set end date to end of day
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        dateFilter.$lte = endOfDay.toISOString();
+      }
+      
+      // Use the client.findTableRows method directly as shown in the demo code
       const { rows } = await client.findTableRows({
         table: TABLE_NAME,
         limit: 1000,
@@ -86,7 +102,9 @@ export default function SentimentAnalysis() {
           // Filter by sentiment if needed
           ...(sentimentFilter && { sentiment: { $eq: sentimentFilter } }),
           // Filter by resolved status if needed
-          ...(!showResolved && { resolved: { $eq: false } })
+          ...(!showResolved && { resolved: { $eq: false } }),
+          // Filter by date range if needed
+          ...((startDate || endDate) && { createdAt: dateFilter })
         },
         orderBy: 'createdAt',
         orderDirection: 'desc'
@@ -111,7 +129,7 @@ export default function SentimentAnalysis() {
       console.error('Error fetching rows:', err);    } finally {
       setLoading(false);
     }
-  }, [client, sentimentFilter, showResolved]);
+  }, [client, sentimentFilter, showResolved, startDate, endDate]);
   
   // Fetch table information
   const fetchTableInfo = useCallback(async () => {
@@ -141,7 +159,7 @@ export default function SentimentAnalysis() {
     if (client) {
       fetchRows();
     }
-  }, [client, fetchRows, sentimentFilter, showResolved]);
+  }, [client, fetchRows, sentimentFilter, showResolved, startDate, endDate]);
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -155,7 +173,7 @@ export default function SentimentAnalysis() {
     });
   };
 
-  // Filtered rows based on sentiment and resolved status
+  // Filtered rows based on sentiment, resolved status, and date range
   const filteredRows = rows.filter(row => {
     // Apply sentiment filter if selected
     if (sentimentFilter && row.sentiment !== sentimentFilter) {
@@ -165,6 +183,23 @@ export default function SentimentAnalysis() {
     // Apply resolved filter
     if (!showResolved && row.resolved) {
       return false;
+    }
+    
+    // Apply date range filter
+    if (startDate || endDate) {
+      const rowDate = new Date(row.createdAt);
+      
+      if (startDate && rowDate < startDate) {
+        return false;
+      }
+      
+      if (endDate) {
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        if (rowDate > endOfDay) {
+          return false;
+        }
+      }
     }
     
     return true;
@@ -269,7 +304,21 @@ export default function SentimentAnalysis() {
       const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD format
       const sentimentStr = sentimentFilter ? `_${sentimentFilter.replace(' ', '-')}` : '_all-sentiments';
       const resolvedStr = showResolved ? '_including-resolved' : '_unresolved-only';
-      const filename = `conversations_${dateStr}${sentimentStr}${resolvedStr}.json`;
+      
+      // Add date range to filename if specified
+      let dateRangeStr = '';
+      if (startDate || endDate) {
+        const formatDate = (date: Date) => date.toISOString().split('T')[0];
+        if (startDate && endDate) {
+          dateRangeStr = `_from-${formatDate(startDate)}-to-${formatDate(endDate)}`;
+        } else if (startDate) {
+          dateRangeStr = `_from-${formatDate(startDate)}`;
+        } else if (endDate) {
+          dateRangeStr = `_until-${formatDate(endDate)}`;
+        }
+      }
+      
+      const filename = `conversations_${dateStr}${sentimentStr}${resolvedStr}${dateRangeStr}.json`;
       
       link.setAttribute('download', filename);
       link.style.visibility = 'hidden';
@@ -283,7 +332,7 @@ export default function SentimentAnalysis() {
     } finally {
       setLoading(false);
     }
-  }, [client, filteredRows, sentimentFilter, showResolved]);
+  }, [client, filteredRows, sentimentFilter, showResolved, startDate, endDate]);
 
   if (!settings.bots.some(bot => bot.botId)) {
     return (
@@ -344,7 +393,7 @@ export default function SentimentAnalysis() {
             <span className="text-sm font-medium">Filter by:</span>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm">Sentiment:</span>
               <Select 
@@ -366,6 +415,26 @@ export default function SentimentAnalysis() {
             </div>
             
             <div className="flex items-center gap-2">
+              <span className="text-sm">From:</span>
+              <DatePicker
+                date={startDate}
+                setDate={setStartDate}
+                placeholder="Start date"
+                className="w-40"
+              />
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-sm">To:</span>
+              <DatePicker
+                date={endDate}
+                setDate={setEndDate}
+                placeholder="End date"
+                className="w-40"
+              />
+            </div>
+            
+            <div className="flex items-center gap-2">
               <Checkbox 
                 id="showResolved" 
                 checked={showResolved}
@@ -375,6 +444,22 @@ export default function SentimentAnalysis() {
                 Show Resolved
               </label>
             </div>
+            
+            {(startDate || endDate || sentimentFilter || showResolved) && (
+              <Button
+                onClick={() => {
+                  setStartDate(undefined);
+                  setEndDate(undefined);
+                  setSentimentFilter(null);
+                  setShowResolved(false);
+                }}
+                size="sm"
+                variant="ghost"
+                className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+              >
+                Clear filters
+              </Button>
+            )}
             
             <Button
               onClick={downloadConversations}
