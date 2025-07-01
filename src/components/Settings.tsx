@@ -4,13 +4,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Save, Settings as SettingsIcon } from 'lucide-react';
+import { Save, Settings as SettingsIcon, RefreshCw } from 'lucide-react';
 import type { AppSettings } from '../types';
 
 export default function Settings() {
   const { settings, updateSettings } = useSettings();
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [isSaving, setIsSaving] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<Record<string, 'idle' | 'loading' | 'success' | 'error'>>({
+    'fr': 'idle',
+    'de': 'idle',
+    'es': 'idle'
+  });
+
+  const webhooks = {
+    'fr': 'https://webhook.botpress.cloud/c9176623-9e4b-40ad-a4c6-7a2a4b20f2bc',
+    'de': 'https://webhook.botpress.cloud/4c99d505-0734-4f7d-beec-85281b5e339b',
+    'es': 'https://webhook.botpress.cloud/16dcf4f1-a0b5-429e-be31-de16418a136a'
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,6 +35,36 @@ export default function Settings() {
       console.error('Failed to save settings:', error);
     } finally {
       setIsSaving(false);
+    }
+  };
+  
+  const handleSync = async (botKey: string) => {
+    setSyncStatus(prev => ({ ...prev, [botKey]: 'loading' }));
+    
+    try {
+      const webhookUrl = webhooks[botKey as keyof typeof webhooks];
+      
+      // Open the webhook URL in a hidden iframe
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = webhookUrl; // This will make a GET request
+      document.body.appendChild(iframe);
+      
+      // Simulate successful response since we can't access the iframe's content due to CORS
+      setSyncStatus(prev => ({ ...prev, [botKey]: 'success' }));
+      
+      // Clean up after a delay
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        setSyncStatus(prev => ({ ...prev, [botKey]: 'idle' }));
+      }, 3000);
+    } catch (error) {
+      console.error(`Error syncing ${botKey}:`, error);
+      setSyncStatus(prev => ({ ...prev, [botKey]: 'error' }));
+      // Reset status after 3 seconds
+      setTimeout(() => {
+        setSyncStatus(prev => ({ ...prev, [botKey]: 'idle' }));
+      }, 3000);
     }
   };  const handleBotIdChange = (botId: string, newBotId: string) => {
     setFormData(prev => ({
@@ -95,6 +136,85 @@ export default function Settings() {
                 />
               </div>
             ))}
+          </CardContent>
+        </Card>
+        
+        {/* Synchronization */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Synchronization</CardTitle>
+            <CardDescription>
+              Manually trigger synchronization for each bot
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* FR Bot Sync */}
+              <div className="border rounded-md p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-medium">Bot FR</h3>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSync('fr')}
+                    disabled={syncStatus['fr'] === 'loading'}
+                    className="flex items-center gap-2"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${syncStatus['fr'] === 'loading' ? 'animate-spin' : ''}`} />
+                    {syncStatus['fr'] === 'loading' ? 'Syncing...' : 
+                     syncStatus['fr'] === 'success' ? 'Synced!' : 
+                     syncStatus['fr'] === 'error' ? 'Failed!' : 'Sync'}
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Trigger synchronization for French bot
+                </p>
+              </div>
+              
+              {/* DE Bot Sync */}
+              <div className="border rounded-md p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-medium">Bot DE</h3>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSync('de')}
+                    disabled={syncStatus['de'] === 'loading'}
+                    className="flex items-center gap-2"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${syncStatus['de'] === 'loading' ? 'animate-spin' : ''}`} />
+                    {syncStatus['de'] === 'loading' ? 'Syncing...' : 
+                     syncStatus['de'] === 'success' ? 'Synced!' : 
+                     syncStatus['de'] === 'error' ? 'Failed!' : 'Sync'}
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Trigger synchronization for German bot
+                </p>
+              </div>
+              
+              {/* ES Bot Sync */}
+              <div className="border rounded-md p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-medium">Bot ES</h3>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSync('es')}
+                    disabled={syncStatus['es'] === 'loading'}
+                    className="flex items-center gap-2"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${syncStatus['es'] === 'loading' ? 'animate-spin' : ''}`} />
+                    {syncStatus['es'] === 'loading' ? 'Syncing...' : 
+                     syncStatus['es'] === 'success' ? 'Synced!' : 
+                     syncStatus['es'] === 'error' ? 'Failed!' : 'Sync'}
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Trigger synchronization for Spanish bot
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
