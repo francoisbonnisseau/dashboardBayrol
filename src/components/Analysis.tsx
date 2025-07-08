@@ -16,12 +16,13 @@ import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 
 // Using the same table name as the SentimentAnalysis component
-const TABLE_NAME = 'Int_Connor_Conversations_Table';
+const TABLE_NAME = 'conversationsAnalysisTable';
 
 interface SentimentRow {
   id: number;
   createdAt: string;
   updatedAt: string;
+  date: string;
   topics?: string;
   summary?: string;
   resolved: boolean;
@@ -109,6 +110,7 @@ export default function Analysis() {
         id: row.id,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
+        date: row.date,
         topics: row.topics || '',
         summary: row.summary || '',
         resolved: !!row.resolved,
@@ -123,7 +125,7 @@ export default function Analysis() {
         case 'date-range':
           if (startDate && endDate) {
             filteredRows = formattedRows.filter(row => {
-              const rowDate = new Date(row.updatedAt);
+              const rowDate = new Date(row.date);
               return rowDate >= startDate && rowDate <= endDate;
             });
           }

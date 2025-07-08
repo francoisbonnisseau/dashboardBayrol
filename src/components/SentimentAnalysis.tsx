@@ -11,12 +11,13 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { RefreshCw, BarChart3, ThumbsUp, ThumbsDown, CheckCircle2, XCircle, Download } from 'lucide-react';
 import ConversationDetail from './ConversationDetail';
 
-const TABLE_NAME = 'Int_Connor_Conversations_Table';
+const TABLE_NAME = 'conversationsAnalysisTable';
 
 interface SentimentRow {
   id: number;
   createdAt: string;
   updatedAt: string;
+  date: string;
   topics?: string;
   summary?: string;
   resolved: boolean;
@@ -104,9 +105,9 @@ export default function SentimentAnalysis() {
           // Filter by resolved status if needed
           ...(!showResolved && { resolved: { $eq: false } }),
           // Filter by date range if needed
-          ...((startDate || endDate) && { createdAt: dateFilter })
+          ...((startDate || endDate) && { date: dateFilter })
         },
-        orderBy: 'createdAt',
+        orderBy: 'date',
         orderDirection: 'desc'
       });
         // Transform the rows to match our expected format
@@ -114,6 +115,7 @@ export default function SentimentAnalysis() {
         id: row.id,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
+        date: row.date,
         topics: row.topics || '',
         summary: row.summary || '',
         resolved: !!row.resolved,
@@ -187,7 +189,7 @@ export default function SentimentAnalysis() {
     
     // Apply date range filter
     if (startDate || endDate) {
-      const rowDate = new Date(row.createdAt);
+      const rowDate = new Date(row.date);
       
       if (startDate && rowDate < startDate) {
         return false;
@@ -280,7 +282,7 @@ export default function SentimentAnalysis() {
             });
             
             conversationsData.push({
-              date: row.createdAt,
+              date: row.date,
               conversation: conversation
             });
           }
@@ -514,7 +516,7 @@ export default function SentimentAnalysis() {
                       key={row.id} 
                       className="hover:bg-muted/50 cursor-pointer" 
                       onClick={() => handleRowClick(row.conversationId)}
-                    >                      <TableCell className="text-sm">{formatDate(row.updatedAt)}</TableCell>
+                    >                      <TableCell className="text-sm">{formatDate(row.date)}</TableCell>
                       <TableCell className="font-medium">
                         <div className="max-w-[200px] truncate" title={row.topics || ''}>
                           {row.topics || '—'}
