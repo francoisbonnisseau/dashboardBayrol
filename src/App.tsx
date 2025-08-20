@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navigation from './components/Navigation';
@@ -16,12 +16,16 @@ import { Toaster } from 'sonner';
 import './App.css';
 
 function AppContent() {
-  const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'settings' | 'analysis' | 'learnings' | 'intro'>('conversations');
+  const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'settings' | 'analysis' | 'learnings' | 'intro'>('sentiment');
   const { isConfigured } = useSettings();
   const { isAuthenticated, userRole, logout } = useAuth();
   
-  console.log('Current view:', activeView, 'isConfigured:', isConfigured);
-  console.log('Auth state:', { isAuthenticated, userRole });
+  // Redirect away if code elsewhere still sets conversations
+  useEffect(() => {
+    if (activeView === 'conversations') {
+      setActiveView('sentiment');
+    }
+  }, [activeView]);
 
   const goToSettings = () => {
     setActiveView('settings');

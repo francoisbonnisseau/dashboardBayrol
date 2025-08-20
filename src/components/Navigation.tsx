@@ -20,6 +20,7 @@ export default function Navigation({ activeView, onViewChange, userRole, onLogou
               <MessageCircle className="h-6 w-6 text-primary" />
               <span className="text-xl font-bold">Bayrol Dashboard</span>
             </div>            <div className="flex items-center space-x-1">
+              {/* Conversations tab hidden per request (retain code for future use)
               <Button
                 variant={activeView === 'conversations' ? 'default' : 'ghost'}
                 size="sm"
@@ -28,7 +29,7 @@ export default function Navigation({ activeView, onViewChange, userRole, onLogou
               >
                 <MessageCircle className="h-4 w-4" />
                 Conversations
-              </Button>
+              </Button> */}
               
               <Button
                 variant={activeView === 'sentiment' ? 'default' : 'ghost'}
