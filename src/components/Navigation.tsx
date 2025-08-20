@@ -1,11 +1,11 @@
-import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, Brain, BookOpen } from 'lucide-react';
+import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, Brain, BookOpen, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { UserRole } from '@/contexts/AuthContext';
 
 interface NavigationProps {
-  activeView: 'conversations' | 'sentiment' | 'settings' | 'analysis' | 'learnings';
-  onViewChange: (view: 'conversations' | 'sentiment' | 'settings' | 'analysis' | 'learnings') => void;
+  activeView: 'conversations' | 'sentiment' | 'settings' | 'analysis' | 'learnings' | 'intro';
+  onViewChange: (view: 'conversations' | 'sentiment' | 'settings' | 'analysis' | 'learnings' | 'intro') => void;
   userRole: UserRole;
   onLogout: () => void;
 }
@@ -48,6 +48,16 @@ export default function Navigation({ activeView, onViewChange, userRole, onLogou
               >
                 <BookOpen className="h-4 w-4" />
                 Learnings
+              </Button>
+              
+              <Button
+                variant={activeView === 'intro' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => onViewChange('intro')}
+                className="flex items-center gap-2"
+              >
+                <FileText className="h-4 w-4" />
+                Intro
               </Button>
               
               {userRole === 'admin' && (

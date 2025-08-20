@@ -6,6 +6,7 @@ import ConversationsList from './components/ConversationsList';
 import SentimentAnalysis from './components/SentimentAnalysis';
 import Analysis from './components/Analysis';
 import Learnings from './components/Learnings';
+import IntroTable from './components/IntroTable';
 import Settings from './components/Settings';
 import LoginPage from './components/LoginPage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,26 +16,23 @@ import { Toaster } from 'sonner';
 import './App.css';
 
 function AppContent() {
-  const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'settings' | 'analysis' | 'learnings'>('conversations');
+  const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'settings' | 'analysis' | 'learnings' | 'intro'>('conversations');
   const { isConfigured } = useSettings();
   const { isAuthenticated, userRole, logout } = useAuth();
   
   console.log('Current view:', activeView, 'isConfigured:', isConfigured);
   console.log('Auth state:', { isAuthenticated, userRole });
 
-  // Function to directly navigate to settings without restrictions
   const goToSettings = () => {
     setActiveView('settings');
   };
 
-  // If not authenticated, show login page
   if (!isAuthenticated) {
     return <LoginPage />;
   }
 
   return (
     <div className="min-h-screen bg-background w-full">
-      {/* Navigation always visible when authenticated */}
       <Navigation 
         activeView={activeView} 
         onViewChange={setActiveView} 
@@ -42,24 +40,20 @@ function AppContent() {
         onLogout={logout} 
       />
       
-      {/* Main content */}
       <main className="w-full">
         {activeView === 'settings' && <Settings />}
-        
         {activeView === 'analysis' && isConfigured && userRole === 'admin' && <Analysis />}
-        
         {activeView === 'learnings' && isConfigured && <Learnings />}
-        
+        {activeView === 'intro' && isConfigured && <IntroTable />}
         {activeView === 'sentiment' && isConfigured && <SentimentAnalysis />}
-        
-        {(activeView === 'sentiment' || activeView === 'analysis' || activeView === 'learnings') && !isConfigured && (
+        {(activeView === 'sentiment' || activeView === 'analysis' || activeView === 'learnings' || activeView === 'intro') && !isConfigured && (
           <div className="flex justify-center w-full px-6 py-12">
             <div className="w-full max-w-4xl">
               <Card>
                 <CardHeader className="text-center">
                   <CardTitle className="text-2xl">Configuration Required</CardTitle>
                   <CardDescription>
-                    Please configure your Botpress workspace and bot settings before accessing sentiment analysis or learnings
+                    Please configure your Botpress workspace and bot settings before accessing sentiment analysis, learnings or intro entries
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="text-center">
@@ -77,7 +71,6 @@ function AppContent() {
             </div>
           </div>
         )}
-        
         {activeView === 'conversations' && !isConfigured && (
           <div className="flex justify-center w-full px-6 py-12">
             <div className="w-full max-w-4xl">
@@ -103,11 +96,8 @@ function AppContent() {
             </div>
           </div>
         )}
-        
         {activeView === 'conversations' && isConfigured && <ConversationsList />}
       </main>
-      
-      {/* Toast notifications */}
       <Toaster position="top-center" />
     </div>
   );
