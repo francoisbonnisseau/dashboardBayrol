@@ -1,11 +1,11 @@
-import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, Brain, BookOpen, FileText } from 'lucide-react';
+import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, Brain, BookOpen, FileText, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { UserRole } from '@/contexts/AuthContext';
 
 interface NavigationProps {
-  activeView: 'conversations' | 'sentiment' | 'settings' | 'analysis' | 'learnings' | 'intro';
-  onViewChange: (view: 'conversations' | 'sentiment' | 'settings' | 'analysis' | 'learnings' | 'intro') => void;
+  activeView: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro';
+  onViewChange: (view: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro') => void;
   userRole: UserRole;
   onLogout: () => void;
 }
@@ -39,6 +39,16 @@ export default function Navigation({ activeView, onViewChange, userRole, onLogou
               >
                 <BarChart3 className="h-4 w-4" />
                 Sentiment
+              </Button>
+              
+              <Button
+                variant={activeView === 'feedbacks' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => onViewChange('feedbacks')}
+                className="flex items-center gap-2"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Feedbacks
               </Button>
               
               <Button
