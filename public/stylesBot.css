@@ -15,3 +15,19 @@
     background-color: #d5ecef !important;
     color: #00384f;
 }
+
+.bpMessageBlocksButton {
+    background-color: transparent; 
+    font-family: 'Roboto Condensed', sans-serif; 
+    text-align: left;
+    border: 1px solid #eee;
+    color: #00384f;
+    transition: border .5s ease;
+}
+
+.bpMessageBlocksButton:hover {
+    background-color: transparent; 
+    font-family: 'Roboto Condensed', sans-serif; 
+    text-align: left;
+    border: 1px solid #00384f;
+}
