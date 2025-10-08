@@ -1,11 +1,11 @@
-import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, Brain, BookOpen, FileText, MessageSquare } from 'lucide-react';
+import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, Brain, BookOpen, FileText, MessageSquare, LineChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { UserRole } from '@/contexts/AuthContext';
 
 interface NavigationProps {
-  activeView: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro';
-  onViewChange: (view: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro') => void;
+  activeView: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'analytics';
+  onViewChange: (view: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'analytics') => void;
   userRole: UserRole;
   onLogout: () => void;
 }
@@ -69,6 +69,16 @@ export default function Navigation({ activeView, onViewChange, userRole, onLogou
               >
                 <FileText className="h-4 w-4" />
                 Intro
+              </Button>
+              
+              <Button
+                variant={activeView === 'analytics' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => onViewChange('analytics')}
+                className="flex items-center gap-2"
+              >
+                <LineChart className="h-4 w-4" />
+                Analytics
               </Button>
               
               {userRole === 'admin' && (

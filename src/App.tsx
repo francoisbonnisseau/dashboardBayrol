@@ -6,6 +6,7 @@ import ConversationsList from './components/ConversationsList';
 import SentimentAnalysis from './components/SentimentAnalysis';
 import Feedbacks from './components/Feedbacks';
 import Analysis from './components/Analysis';
+import Analytics from './components/Analytics';
 import Learnings from './components/Learnings';
 import IntroTable from './components/IntroTable';
 import Settings from './components/Settings';
@@ -17,7 +18,7 @@ import { Toaster } from 'sonner';
 import './App.css';
 
 function AppContent() {
-  const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro'>('sentiment');
+  const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'analytics'>('sentiment');
   const { isConfigured } = useSettings();
   const { isAuthenticated, userRole, logout } = useAuth();
   
@@ -48,18 +49,19 @@ function AppContent() {
       <main className="w-full">
         {activeView === 'settings' && <Settings />}
         {activeView === 'analysis' && isConfigured && userRole === 'admin' && <Analysis />}
+        {activeView === 'analytics' && isConfigured && <Analytics />}
         {activeView === 'learnings' && isConfigured && <Learnings />}
         {activeView === 'intro' && isConfigured && <IntroTable />}
         {activeView === 'sentiment' && isConfigured && <SentimentAnalysis />}
         {activeView === 'feedbacks' && isConfigured && <Feedbacks />}
-        {(activeView === 'sentiment' || activeView === 'feedbacks' || activeView === 'analysis' || activeView === 'learnings' || activeView === 'intro') && !isConfigured && (
+        {(activeView === 'sentiment' || activeView === 'feedbacks' || activeView === 'analysis' || activeView === 'learnings' || activeView === 'intro' || activeView === 'analytics') && !isConfigured && (
           <div className="flex justify-center w-full px-6 py-12">
             <div className="w-full max-w-4xl">
               <Card>
                 <CardHeader className="text-center">
                   <CardTitle className="text-2xl">Configuration Required</CardTitle>
                   <CardDescription>
-                    Please configure your Botpress workspace and bot settings before accessing sentiment analysis, feedbacks, learnings or intro entries
+                    Please configure your Botpress workspace and bot settings before accessing sentiment analysis, feedbacks, learnings, intro entries, or analytics
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="text-center">
