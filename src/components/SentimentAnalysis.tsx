@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DatePicker } from '@/components/ui/date-picker';
 import { RefreshCw, BarChart3, ThumbsUp, ThumbsDown, CheckCircle2, XCircle, Download } from 'lucide-react';
+import { subDays } from 'date-fns';
 import ConversationDetail from './ConversationDetail';
 
 const TABLE_NAME = 'conversationsAnalysisTable';
@@ -56,8 +57,8 @@ export default function SentimentAnalysis() {
   // Filter states
   const [sentimentFilter, setSentimentFilter] = useState<string | null>(null);
   const [showResolved, setShowResolved] = useState<boolean>(false);
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 7));
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   // Conversation detail states
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [conversationSheetOpen, setConversationSheetOpen] = useState<boolean>(false);
