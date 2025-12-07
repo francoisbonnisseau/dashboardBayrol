@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Edit2, Trash2, Save, FileText, RefreshCw, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, RefreshCw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const TABLE_NAME = 'introTable';
@@ -180,44 +180,47 @@ export default function IntroTable() {
   }
 
   return (
-    <div className="w-full px-6 py-6">
-      <div className="w-full max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <FileText className="h-8 w-8 text-primary" />
-            <div>
-              <h1 className="text-3xl font-bold">Intro Entries</h1>
-              <p className="text-muted-foreground">Manage introductory sentences per season & live status</p>
+    <div className="w-full px-6 py-4 space-y-4">
+      {/* Header Card */}
+      <Card>
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-muted-foreground">Bot:</span>
+              <Select value={selectedBotId} onValueChange={setSelectedBotId}>
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="Select a bot" />
+                </SelectTrigger>
+                <SelectContent>
+                  {settings.bots.map(bot => (
+                    <SelectItem key={bot.id} value={bot.botId}>
+                      {bot.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">
+                Manage introductory sentences per season & live status
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => loadEntries()} 
+                disabled={!client || loading}
+                className="h-9"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => loadEntries()} disabled={!client || loading} className="flex items-center gap-2">
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Select Bot</CardTitle>
-            <CardDescription>Choose which bot's intro entries you want to manage</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Select value={selectedBotId} onValueChange={setSelectedBotId}>
-              <SelectTrigger className="w-full max-w-md">
-                <SelectValue placeholder="Select a bot..." />
-              </SelectTrigger>
-              <SelectContent>
-                {settings.bots.map(bot => (
-                  <SelectItem key={bot.id} value={bot.botId}>
-                    {bot.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
-
-        {selectedBotId && (
+      {selectedBotId && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -361,7 +364,6 @@ export default function IntroTable() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
     </div>
   );
 }

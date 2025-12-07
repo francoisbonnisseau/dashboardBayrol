@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Save, Settings as SettingsIcon, RefreshCw } from 'lucide-react';
+import { Save, RefreshCw } from 'lucide-react';
 import type { AppSettings } from '../types';
 
 export default function Settings() {
@@ -76,11 +76,6 @@ export default function Settings() {
   };
 
   return (    <div className="w-full px-6 py-6 space-y-6">
-      <div className="flex items-center gap-2 mb-6">
-        <SettingsIcon className="h-6 w-6" />
-        <h1 className="text-3xl font-bold">Settings</h1>
-      </div>
-
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* General Settings */}
         <Card>

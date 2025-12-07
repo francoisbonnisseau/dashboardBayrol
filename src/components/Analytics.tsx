@@ -1,16 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useBotpressClient } from '../hooks/useBotpressClient';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Loader2, Users, MessageSquare, BarChart3, Calendar } from 'lucide-react';
+import { Loader2, Users, MessageSquare, BarChart3 } from 'lucide-react';
 import { subDays, format } from 'date-fns';
 import { toast } from 'sonner';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Bar, BarChart as RechartsBarChart } from 'recharts';
+import { Area, AreaChart, XAxis, ResponsiveContainer, CartesianGrid } from 'recharts';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const TABLE_NAME = 'conversationsAnalysisTable';
 
@@ -296,7 +303,7 @@ export default function Analytics() {
     }
   }, [selectedBotId, startDate, endDate, fetchAnalytics]);
 
-  const selectedBot = settings.bots.find((bot: any) => bot.botId === selectedBotId);
+
 
   // Sort data for table
   const sortedData = [...analyticsData].sort((a, b) => {
@@ -354,395 +361,253 @@ export default function Analytics() {
   });
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-background to-muted/20">
-      <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 max-w-7xl space-y-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              Bot Analytics
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              Performance metrics and usage statistics overview
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <Label className="text-sm font-medium">Bot:</Label>
-            <Select value={selectedBotId} onValueChange={setSelectedBotId}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Select a bot" />
-              </SelectTrigger>
-              <SelectContent>
-                {settings.bots.map((bot: any) => (
-                  <SelectItem key={bot.id} value={bot.botId}>
-                    {bot.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Date Range Selection */}
-        <Card className="border-2 shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              Analysis Period
-            </CardTitle>
-            <CardDescription>
-              Select the period for which you want to view analytics data
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row items-end gap-4">
-              <div className="space-y-2 flex-1 w-full">
-                <Label>Start Date</Label>
-                <DatePicker date={startDate} setDate={setStartDate} />
+    <div className="space-y-6 px-6 py-4">
+      {/* Filters Card */}
+      <Card>
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-col gap-4">
+            {/* Top row: Bot selector and description */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-muted-foreground">Bot:</span>
+                <Select value={selectedBotId} onValueChange={setSelectedBotId}>
+                  <SelectTrigger className="w-[180px] h-9">
+                    <SelectValue placeholder="Select a bot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {settings.bots.map((bot: any) => (
+                      <SelectItem key={bot.id} value={bot.botId}>
+                        {bot.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-2 flex-1 w-full">
-                <Label>End Date</Label>
-                <DatePicker date={endDate} setDate={setEndDate} />
+              <p className="text-sm text-muted-foreground">
+                Overview of your bot's performance and engagement
+              </p>
+            </div>
+            
+            {/* Divider */}
+            <div className="border-t" />
+            
+            {/* Filter row */}
+            <div className="flex flex-wrap items-end gap-4">
+              {/* Date range */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Date Range
+                </label>
+                <div className="flex items-center gap-2">
+                  <DatePicker
+                    date={startDate}
+                    setDate={setStartDate}
+                    placeholder="Start"
+                    className="w-[140px]"
+                  />
+                  <span className="text-muted-foreground">→</span>
+                  <DatePicker
+                    date={endDate}
+                    setDate={setEndDate}
+                    placeholder="End"
+                    className="w-[140px]"
+                  />
+                </div>
               </div>
+              
+              {/* Update button */}
               <Button 
                 onClick={fetchAnalytics} 
                 disabled={isLoading || !selectedBotId}
-                className="px-8 w-full sm:w-auto"
-                size="lg"
+                className="h-9"
               >
                 {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading...
-                  </>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <>
-                    <BarChart3 className="mr-2 h-4 w-4" />
-                    Load Data
-                  </>
+                  <BarChart3 className="mr-2 h-4 w-4" />
                 )}
+                Update View
               </Button>
             </div>
-            {selectedBot && (
-              <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/10">
-                <p className="text-sm text-muted-foreground">
-                  Analyzing: <span className="font-semibold text-foreground">{selectedBot.name}</span>
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Summary Cards */}
-        {summary && (
-          <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-3">
-            <Card className="border-2 hover:shadow-xl transition-shadow duration-300 bg-gradient-to-br from-purple-50 to-background dark:from-purple-950/20">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Unique Users</CardTitle>
-                <div className="h-10 w-10 rounded-full bg-purple-500/10 flex items-center justify-center">
-                  <Users className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                  {summary.totalUsers.toLocaleString()}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Based on unique conversation IDs
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 hover:shadow-xl transition-shadow duration-300 bg-gradient-to-br from-green-50 to-background dark:from-green-950/20">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">User Messages</CardTitle>
-                <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                  <MessageSquare className="h-5 w-5 text-green-600 dark:text-green-400" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-green-600 dark:text-green-400">
-                  {summary.totalUserMessages.toLocaleString()}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {summary.avgMessagesPerConversation} avg per conversation
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 hover:shadow-xl transition-shadow duration-300 bg-gradient-to-br from-orange-50 to-background dark:from-orange-950/20">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Bot Messages</CardTitle>
-                <div className="h-10 w-10 rounded-full bg-orange-500/10 flex items-center justify-center">
-                  <MessageSquare className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">
-                  {summary.totalBotMessages.toLocaleString()}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Automated responses
-                </p>
-              </CardContent>
-            </Card>
           </div>
-        )}
+        </CardContent>
+      </Card>
 
-        {/* Charts - Side by side */}
-        {analyticsData.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Users Chart */}
-            <Card className="border-2 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-primary" />
-                  Unique Users Over Time
-                </CardTitle>
-                <CardDescription>
-                  Daily evolution of unique users
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ChartContainer
+      {/* Summary Cards */}
+      {summary && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{summary.totalUsers.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">Unique interactions</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Conversations</CardTitle>
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{summary.totalConversations.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">Total sessions</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">User Messages</CardTitle>
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{summary.totalUserMessages.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">Avg {summary.avgMessagesPerConversation} per conv</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Bot Messages</CardTitle>
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{summary.totalBotMessages.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">Automated replies</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Charts */}
+      {analyticsData.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Unique Users</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
                   config={{
                     users: {
                       label: "Users",
-                      color: "hsl(var(--chart-2))",
+                      color: "hsl(var(--chart-1))",
                     },
                   }}
-                  className="h-[350px] w-full"
+                  className="h-[300px] w-full"
                 >
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
-                      <defs>
-                        <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0.1}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <AreaChart
+                      data={chartData}
+                      margin={{
+                        left: 12,
+                        right: 12,
+                      }}
+                    >
+                      <CartesianGrid vertical={false} />
                       <XAxis 
                         dataKey="date" 
-                        className="text-xs"
-                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
                       />
-                      <YAxis 
-                        className="text-xs"
-                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                      />
-                      <ChartTooltip 
-                        content={<ChartTooltipContent />}
-                      />
+                      <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
                       <Area 
-                        type="monotone" 
                         dataKey="users" 
-                        stroke="hsl(var(--chart-2))" 
-                        fillOpacity={1} 
-                        fill="url(#colorUsers)"
-                        strokeWidth={2}
+                        type="natural" 
+                        fill="var(--color-users)" 
+                        fillOpacity={0.4} 
+                        stroke="var(--color-users)" 
                       />
                     </AreaChart>
                   </ResponsiveContainer>
                 </ChartContainer>
-              </CardContent>
-            </Card>
-
-            {/* Messages Chart */}
-            <Card className="border-2 shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5 text-primary" />
-                  User vs Bot Messages
-                </CardTitle>
-                <CardDescription>
-                  Comparison of messages sent by users and bot
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ChartContainer
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>User Messages</CardTitle>
+            </CardHeader>
+            <CardContent>
+               <ChartContainer
                   config={{
                     userMessages: {
                       label: "User Messages",
-                      color: "hsl(var(--chart-3))",
-                    },
-                    botMessages: {
-                      label: "Bot Messages",
-                      color: "hsl(var(--chart-4))",
+                      color: "hsl(var(--chart-2))",
                     },
                   }}
-                  className="h-[350px] w-full"
+                  className="h-[300px] w-full"
                 >
                   <ResponsiveContainer width="100%" height="100%">
-                    <RechartsBarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <AreaChart
+                      data={chartData}
+                      margin={{
+                        left: 12,
+                        right: 12,
+                      }}
+                    >
+                      <CartesianGrid vertical={false} />
                       <XAxis 
                         dataKey="date" 
-                        className="text-xs"
-                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
                       />
-                      <YAxis 
-                        className="text-xs"
-                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                      />
-                      <ChartTooltip 
-                        content={<ChartTooltipContent />}
-                      />
-                      <Bar 
+                      <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
+                      <Area 
                         dataKey="userMessages" 
-                        fill="hsl(var(--chart-3))" 
-                        radius={[4, 4, 0, 0]}
+                        type="natural" 
+                        fill="var(--color-userMessages)" 
+                        fillOpacity={0.4} 
+                        stroke="var(--color-userMessages)" 
                       />
-                      <Bar 
-                        dataKey="botMessages" 
-                        fill="hsl(var(--chart-4))" 
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </RechartsBarChart>
+                    </AreaChart>
                   </ResponsiveContainer>
                 </ChartContainer>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Detailed Data Table */}
-        {analyticsData.length > 0 && (
-          <Card className="border-2 shadow-lg">
-            <CardHeader>
-              <CardTitle>Daily Breakdown</CardTitle>
-              <CardDescription>
-                Detailed analytics data for each day in the selected period. Click column headers to sort.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="relative overflow-x-auto rounded-lg border">
-                  <table className="w-full text-sm">
-                    <thead className="text-xs uppercase bg-muted/50">
-                      <tr>
-                        <th 
-                          className="px-6 py-4 text-left font-semibold cursor-pointer hover:bg-muted/70 transition-colors"
-                          onClick={() => handleSort('date')}
-                        >
-                          <div className="flex items-center gap-2">
-                            Date
-                            {sortField === 'date' && (
-                              <span className="text-primary">
-                                {sortDirection === 'asc' ? '↑' : '↓'}
-                              </span>
-                            )}
-                          </div>
-                        </th>
-                        <th 
-                          className="px-6 py-4 text-right font-semibold cursor-pointer hover:bg-muted/70 transition-colors"
-                          onClick={() => handleSort('users')}
-                        >
-                          <div className="flex items-center justify-end gap-2">
-                            Users
-                            {sortField === 'users' && (
-                              <span className="text-primary">
-                                {sortDirection === 'asc' ? '↑' : '↓'}
-                              </span>
-                            )}
-                          </div>
-                        </th>
-                        <th 
-                          className="px-6 py-4 text-right font-semibold cursor-pointer hover:bg-muted/70 transition-colors"
-                          onClick={() => handleSort('userMessages')}
-                        >
-                          <div className="flex items-center justify-end gap-2">
-                            User Msgs
-                            {sortField === 'userMessages' && (
-                              <span className="text-primary">
-                                {sortDirection === 'asc' ? '↑' : '↓'}
-                              </span>
-                            )}
-                          </div>
-                        </th>
-                        <th 
-                          className="px-6 py-4 text-right font-semibold cursor-pointer hover:bg-muted/70 transition-colors"
-                          onClick={() => handleSort('botMessages')}
-                        >
-                          <div className="flex items-center justify-end gap-2">
-                            Bot Msgs
-                            {sortField === 'botMessages' && (
-                              <span className="text-primary">
-                                {sortDirection === 'asc' ? '↑' : '↓'}
-                              </span>
-                            )}
-                          </div>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {sortedData.map((record, index) => {
-                        // Safely format the date, fallback to raw string if invalid
-                        let formattedDate = record.date;
-                        try {
-                          const dateObj = new Date(record.date);
-                          if (!isNaN(dateObj.getTime())) {
-                            formattedDate = format(dateObj, 'MMM dd, yyyy');
-                          }
-                        } catch (e) {
-                          console.warn('Invalid date:', record.date);
-                        }
-                        
-                        return (
-                          <tr key={index} className="hover:bg-muted/30 transition-colors">
-                            <td className="px-6 py-4 font-medium">
-                              {formattedDate}
-                            </td>
-                            <td className="px-6 py-4 text-right font-semibold text-purple-600 dark:text-purple-400">
-                              {record.uniqueUsers}
-                            </td>
-                            <td className="px-6 py-4 text-right font-semibold text-green-600 dark:text-green-400">
-                              {record.userMessages}
-                            </td>
-                            <td className="px-6 py-4 text-right font-semibold text-orange-600 dark:text-orange-400">
-                              {record.botMessages}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-        )}
-
-        {/* Empty State */}
-        {!isLoading && analyticsData.length === 0 && selectedBotId && (
-          <Card className="border-2">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mb-4">
-                <BarChart3 className="h-10 w-10 text-muted-foreground" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">No Data Available</h3>
-              <p className="text-muted-foreground text-center max-w-md">
-                No analytics data is available for the selected period. 
-                Try selecting a different date range or check if your bot has received any interactions.
-              </p>
             </CardContent>
           </Card>
-        )}
+        </div>
+      )}
 
-        {/* No Bot Selected */}
-        {!selectedBotId && (
-          <Card className="border-2">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                <BarChart3 className="h-10 w-10 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Select a Bot</h3>
-              <p className="text-muted-foreground text-center max-w-md">
-                Please select a bot from the dropdown above to view its analytics data.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      {/* Table */}
+      {analyticsData.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Daily Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="cursor-pointer" onClick={() => handleSort('date')}>Date</TableHead>
+                  <TableHead className="text-right cursor-pointer" onClick={() => handleSort('users')}>Users</TableHead>
+                  <TableHead className="text-right cursor-pointer" onClick={() => handleSort('userMessages')}>User Msgs</TableHead>
+                  <TableHead className="text-right cursor-pointer" onClick={() => handleSort('botMessages')}>Bot Msgs</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedData.map((record, index) => {
+                   let formattedDate = record.date;
+                    try {
+                      const dateObj = new Date(record.date);
+                      if (!isNaN(dateObj.getTime())) {
+                        formattedDate = format(dateObj, 'MMM dd, yyyy');
+                      }
+                    } catch (e) {}
+                  return (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{formattedDate}</TableCell>
+                      <TableCell className="text-right">{record.uniqueUsers}</TableCell>
+                      <TableCell className="text-right">{record.userMessages}</TableCell>
+                      <TableCell className="text-right">{record.botMessages}</TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

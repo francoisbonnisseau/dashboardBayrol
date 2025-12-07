@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Navigation from './components/Navigation';
+import Layout from './components/Layout';
 import ConversationsList from './components/ConversationsList';
 import SentimentAnalysis from './components/SentimentAnalysis';
 import Feedbacks from './components/Feedbacks';
@@ -38,15 +38,13 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background w-full">
-      <Navigation 
+    <>
+      <Layout 
         activeView={activeView} 
         onViewChange={setActiveView} 
         userRole={userRole} 
         onLogout={logout} 
-      />
-      
-      <main className="w-full">
+      >
         {activeView === 'settings' && <Settings />}
         {activeView === 'analysis' && isConfigured && userRole === 'admin' && <Analysis />}
         {activeView === 'analytics' && isConfigured && <Analytics />}
@@ -105,9 +103,9 @@ function AppContent() {
           </div>
         )}
         {activeView === 'conversations' && isConfigured && <ConversationsList />}
-      </main>
+      </Layout>
       <Toaster position="top-center" />
-    </div>
+    </>
   );
 }
 

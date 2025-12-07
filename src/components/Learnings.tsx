@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Edit2, Trash2, Save, X, BookOpen } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface LearningEntry {
@@ -216,41 +216,34 @@ export default function Learnings() {
   }
 
   return (
-    <div className="w-full px-6 py-6">
-      <div className="w-full max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <BookOpen className="h-8 w-8 text-primary" />
-            <div>
-              <h1 className="text-3xl font-bold">Learnings Management</h1>
-              <p className="text-muted-foreground">Manage questions, answers, and tags</p>
+    <div className="w-full px-6 py-4 space-y-4">
+      {/* Header Card */}
+      <Card>
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-muted-foreground">Bot:</span>
+              <Select value={selectedBotId} onValueChange={setSelectedBotId}>
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="Select a bot" />
+                </SelectTrigger>
+                <SelectContent>
+                  {settings.bots.map((bot) => (
+                    <SelectItem key={bot.id} value={bot.botId}>
+                      {bot.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            <p className="text-sm text-muted-foreground">
+              Manage questions, answers, and tags
+            </p>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Bot Selection */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Select Bot</CardTitle>
-            <CardDescription>Choose which bot's learnings you want to manage</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Select value={selectedBotId} onValueChange={setSelectedBotId}>
-              <SelectTrigger className="w-full max-w-md">
-                <SelectValue placeholder="Select a bot..." />
-              </SelectTrigger>
-              <SelectContent>
-                {settings.bots.map((bot) => (
-                  <SelectItem key={bot.id} value={bot.botId}>
-                    {bot.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
-
-        {selectedBotId && (
+      {selectedBotId && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -485,7 +478,6 @@ export default function Learnings() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
     </div>
   );
 }

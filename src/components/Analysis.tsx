@@ -296,45 +296,63 @@ export default function Analysis() {
   // const selectedBot = settings.bots.find(bot => bot.botId === selectedBotId);
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">AI Conversation Analysis</h1>
-        
-        <div className="flex items-center gap-3">
-          <div className="text-sm text-muted-foreground">Select Bot:</div>
-          <Select value={selectedBotId} onValueChange={setSelectedBotId}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Select a bot" />
-            </SelectTrigger>
-            <SelectContent>
-              {settings.bots.map(bot => (
-                <SelectItem key={bot.id} value={bot.botId}>
-                  {bot.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+    <div className="w-full px-6 py-4 space-y-4">
+      {/* Header Card */}
+      <Card>
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-muted-foreground">Bot:</span>
+              <Select value={selectedBotId} onValueChange={setSelectedBotId}>
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="Select a bot" />
+                </SelectTrigger>
+                <SelectContent>
+                  {settings.bots.map(bot => (
+                    <SelectItem key={bot.id} value={bot.botId}>
+                      {bot.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Analyze conversations using AI
+            </p>
+          </div>
+        </CardContent>
+      </Card>
       
-      <div className="flex items-center justify-center mb-8">
-        <div className="flex items-center justify-between w-full max-w-3xl bg-secondary/30 rounded-lg p-2">
-          <div className={`flex-1 p-3 text-center rounded-md ${step === 'select-data' ? 'bg-white shadow-sm' : ''}`}>
-            1. Select Conversations
+      {/* Step Indicator */}
+      <div className="flex items-center justify-center py-2">
+        <div className="flex items-center w-full max-w-2xl">
+          <div className={`flex-1 flex flex-col items-center gap-2 ${step === 'select-data' ? 'text-primary' : 'text-muted-foreground'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === 'select-data' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+              1
+            </div>
+            <span className="text-xs font-medium">Select Data</span>
           </div>
-          <div className={`flex-1 p-3 text-center rounded-md ${step === 'enter-prompt' ? 'bg-white shadow-sm' : ''}`}>
-            2. Enter AI Prompt
+          <div className={`flex-1 h-0.5 ${step !== 'select-data' ? 'bg-primary' : 'bg-muted'}`} />
+          <div className={`flex-1 flex flex-col items-center gap-2 ${step === 'enter-prompt' ? 'text-primary' : 'text-muted-foreground'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === 'enter-prompt' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+              2
+            </div>
+            <span className="text-xs font-medium">AI Prompt</span>
           </div>
-          <div className={`flex-1 p-3 text-center rounded-md ${step === 'view-results' ? 'bg-white shadow-sm' : ''}`}>
-            3. View Results
+          <div className={`flex-1 h-0.5 ${step === 'view-results' ? 'bg-primary' : 'bg-muted'}`} />
+          <div className={`flex-1 flex flex-col items-center gap-2 ${step === 'view-results' ? 'text-primary' : 'text-muted-foreground'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === 'view-results' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+              3
+            </div>
+            <span className="text-xs font-medium">Results</span>
           </div>
         </div>
       </div>
       
       {step === 'select-data' && (
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
-            <CardTitle>Select Conversations for Analysis</CardTitle>
+            <CardTitle className="text-lg">Select Conversations for Analysis</CardTitle>
             <CardDescription>Choose a method to filter conversations for AI analysis</CardDescription>
           </CardHeader>
           <CardContent>
@@ -346,23 +364,30 @@ export default function Analysis() {
               </TabsList>
               
               <TabsContent value="date-range" className="space-y-4">
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label>Start Date</Label>
-                    <DatePicker date={startDate} setDate={setStartDate} />
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Start Date
+                    </label>
+                    <DatePicker date={startDate} setDate={setStartDate} className="w-[160px]" />
                   </div>
-                  <div className="space-y-2">
-                    <Label>End Date</Label>
-                    <DatePicker date={endDate} setDate={setEndDate} />
+                  <span className="text-muted-foreground pb-2">→</span>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      End Date
+                    </label>
+                    <DatePicker date={endDate} setDate={setEndDate} className="w-[160px]" />
                   </div>
                 </div>
               </TabsContent>
               
               <TabsContent value="sentiment" className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Select Sentiment</Label>
+                <div className="flex flex-col gap-1.5 max-w-xs">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Sentiment
+                  </label>
                   <Select value={selectedSentiment} onValueChange={setSelectedSentiment}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="h-9">
                       <SelectValue placeholder="Select sentiment" />
                     </SelectTrigger>
                     <SelectContent>
@@ -377,16 +402,16 @@ export default function Analysis() {
               </TabsContent>
               
               <TabsContent value="topics" className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Search Topics</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      placeholder="Enter topic keywords" 
-                      value={searchTopic} 
-                      onChange={(e) => setSearchTopic(e.target.value)} 
-                      className="flex-1"
-                    />
-                  </div>
+                <div className="flex flex-col gap-1.5 max-w-md">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Topic Keywords
+                  </label>
+                  <Input 
+                    placeholder="Enter topic keywords..." 
+                    value={searchTopic} 
+                    onChange={(e) => setSearchTopic(e.target.value)} 
+                    className="h-9"
+                  />
                 </div>
               </TabsContent>
             </Tabs>

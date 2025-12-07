@@ -228,8 +228,6 @@ export default function Feedbacks() {
     setSelectedFeedback(feedback);
     setConversationSheetOpen(true);
   }, []);
-  
-  const selectedBot = settings.bots.find(bot => bot.botId === selectedBotId);
 
   // Download feedbacks in JSON format
   const downloadFeedbacks = useCallback(async () => {
@@ -295,119 +293,127 @@ export default function Feedbacks() {
 
   return (
     <div className="w-full px-6 py-4 space-y-4">
-      <div className="flex flex-col gap-4">
-        {/* Header with bot selection */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-6 w-6" />
-            <h1 className="text-2xl font-bold">Feedbacks</h1>
-            {selectedBot && (
-              <span className="text-muted-foreground ml-2">
-                for <span className="font-medium">{selectedBot.name}</span>
-              </span>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <Select value={selectedBotId} onValueChange={setSelectedBotId}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Select a bot" />
-              </SelectTrigger>
-              <SelectContent>
-                {settings.bots
-                  .filter(bot => bot.botId)
-                  .map((bot) => (
-                    <SelectItem key={bot.id} value={bot.botId}>
-                      {bot.name}
+      {/* Filters Card */}
+      <Card>
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-col gap-4">
+            {/* Top row: Bot selector and actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-muted-foreground">Bot:</span>
+                <Select value={selectedBotId} onValueChange={setSelectedBotId}>
+                  <SelectTrigger className="w-[180px] h-9">
+                    <SelectValue placeholder="Select a bot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {settings.bots
+                      .filter(bot => bot.botId)
+                      .map((bot) => (
+                        <SelectItem key={bot.id} value={bot.botId}>
+                          {bot.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={downloadFeedbacks}
+                  disabled={loading || !client || filteredRows.length === 0}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export ({filteredRows.length})
+                </Button>
+                <Button
+                  onClick={fetchTableInfo}
+                  disabled={loading || !client}
+                  size="sm"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
+            </div>
+            
+            {/* Divider */}
+            <div className="border-t" />
+            
+            {/* Filter row */}
+            <div className="flex flex-wrap items-end gap-4">
+              {/* Reaction filter */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Reaction
+                </label>
+                <Select 
+                  value={reactionFilter || 'all'} 
+                  onValueChange={(value) => setReactionFilter(value === 'all' ? null : value)}
+                >
+                  <SelectTrigger className="w-[140px] h-9">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All reactions</SelectItem>
+                    <SelectItem value="positive">
+                      <span className="flex items-center gap-2">
+                        <ThumbsUp className="h-3.5 w-3.5 text-green-600" />
+                        Positive
+                      </span>
                     </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            
-            <Button
-              onClick={fetchTableInfo}
-              disabled={loading || !client}
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
-        </div>
-
-        {/* Filter controls */}
-        <div className="flex flex-wrap items-center gap-4 border rounded-md p-4 bg-muted/10">
-          <div className="flex items-center gap-2 mr-4">
-            <span className="text-sm font-medium">Filter by:</span>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">Reaction:</span>
-              <Select 
-                value={reactionFilter || 'all'} 
-                onValueChange={(value) => setReactionFilter(value === 'all' ? null : value)}
-              >
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Any reaction" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All reactions</SelectItem>
-                  <SelectItem value="positive">Positive</SelectItem>
-                  <SelectItem value="negative">Negative</SelectItem>
-                </SelectContent>
-              </Select>
+                    <SelectItem value="negative">
+                      <span className="flex items-center gap-2">
+                        <ThumbsDown className="h-3.5 w-3.5 text-red-600" />
+                        Negative
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Date range */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Date Range
+                </label>
+                <div className="flex items-center gap-2">
+                  <DatePicker
+                    date={startDate}
+                    setDate={setStartDate}
+                    placeholder="Start"
+                    className="w-[140px]"
+                  />
+                  <span className="text-muted-foreground">→</span>
+                  <DatePicker
+                    date={endDate}
+                    setDate={setEndDate}
+                    placeholder="End"
+                    className="w-[140px]"
+                  />
+                </div>
+              </div>
+              
+              {/* Clear filters */}
+              {(startDate || endDate || reactionFilter) && (
+                <Button
+                  onClick={() => {
+                    setStartDate(undefined);
+                    setEndDate(undefined);
+                    setReactionFilter(null);
+                  }}
+                  size="sm"
+                  variant="ghost"
+                  className="h-9 text-muted-foreground hover:text-foreground"
+                >
+                  Reset filters
+                </Button>
+              )}
             </div>
-            
-            <div className="flex items-center gap-2">
-              <span className="text-sm">From:</span>
-              <DatePicker
-                date={startDate}
-                setDate={setStartDate}
-                placeholder="Start date"
-                className="w-40"
-              />
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <span className="text-sm">To:</span>
-              <DatePicker
-                date={endDate}
-                setDate={setEndDate}
-                placeholder="End date"
-                className="w-40"
-              />
-            </div>
-            
-            {(startDate || endDate || reactionFilter) && (
-              <Button
-                onClick={() => {
-                  setStartDate(undefined);
-                  setEndDate(undefined);
-                  setReactionFilter(null);
-                }}
-                size="sm"
-                variant="ghost"
-                className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
-              >
-                Clear filters
-              </Button>
-            )}
-            
-            <Button
-              onClick={downloadFeedbacks}
-              disabled={loading || !client || filteredRows.length === 0}
-              size="sm"
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Download ({filteredRows.length})
-            </Button>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
       
       {error && (
         <Card className="border-red-200 bg-red-50">
