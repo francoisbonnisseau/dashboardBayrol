@@ -451,9 +451,11 @@ export default function SentimentAnalysis() {
                   Status
                 </label>
                 <Button
-                  variant={showResolved ? "default" : "outline"}
+                  variant="outline"
                   size="sm"
-                  className="h-9"
+                  className={`h-9 ${showResolved 
+                    ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100 hover:text-green-800' 
+                    : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100 hover:text-red-800'}`}
                   onClick={() => setShowResolved(!showResolved)}
                 >
                   {showResolved ? (
