@@ -1,25 +1,42 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useBotpressClient } from '../hooks/useBotpressClient';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Button } from '@/components/ui/button';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Loader2, Users, MessageSquare, BarChart3 } from 'lucide-react';
+import { Loader2, Users, MessageSquare, BarChart3, CheckCircle2, XCircle, TrendingUp, Smile, Meh } from 'lucide-react';
 import { subDays, format } from 'date-fns';
 import { toast } from 'sonner';
-import { Area, AreaChart, XAxis, ResponsiveContainer, CartesianGrid } from 'recharts';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Area, AreaChart, XAxis, YAxis, ResponsiveContainer, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from 'recharts';
 
 const TABLE_NAME = 'conversationsAnalysisTable';
+
+// Sentiment colors
+const SENTIMENT_COLORS: Record<string, string> = {
+  'very positive': '#22c55e',
+  'positive': '#86efac',
+  'neutral': '#94a3b8',
+  'negative': '#fca5a5',
+  'very negative': '#ef4444',
+};
+
+// Custom tooltip for charts
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3">
+        <p className="font-medium text-sm mb-1 text-gray-900 dark:text-gray-100">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <p key={index} className="text-sm" style={{ color: entry.color }}>
+            {entry.name}: {entry.value.toLocaleString()}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
 interface TranscriptMessage {
   sender: 'bot' | 'user';
@@ -56,8 +73,17 @@ interface AnalyticsSummary {
   avgMessagesPerConversation: number;
 }
 
-type SortField = 'date' | 'users' | 'userMessages' | 'botMessages';
-type SortDirection = 'asc' | 'desc';
+interface SentimentData {
+  name: string;
+  value: number;
+  color: string;
+}
+
+interface ResolutionData {
+  resolved: number;
+  unresolved: number;
+  resolutionRate: number;
+}
 
 export default function Analytics() {
   const { settings } = useSettings();
@@ -66,9 +92,9 @@ export default function Analytics() {
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [analyticsData, setAnalyticsData] = useState<DailyAnalytics[]>([]);
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [sentimentData, setSentimentData] = useState<SentimentData[]>([]);
+  const [resolutionData, setResolutionData] = useState<ResolutionData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [sortField, setSortField] = useState<SortField>('date');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   
   const client = useBotpressClient(selectedBotId);
   
@@ -276,14 +302,51 @@ export default function Analytics() {
 
       console.log('Daily analytics:', dailyAnalytics);
 
+      // Calculate sentiment distribution
+      const sentimentCounts: Record<string, number> = {
+        'very positive': 0,
+        'positive': 0,
+        'neutral': 0,
+        'negative': 0,
+        'very negative': 0,
+      };
+      
+      uniqueConversations.forEach(conv => {
+        const sentiment = (conv.sentiment || 'neutral').toLowerCase();
+        if (sentiment in sentimentCounts) {
+          sentimentCounts[sentiment]++;
+        } else {
+          sentimentCounts['neutral']++;
+        }
+      });
+
+      const sentimentDistribution: SentimentData[] = Object.entries(sentimentCounts)
+        .filter(([_, value]) => value > 0)
+        .map(([name, value]) => ({
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          value,
+          color: SENTIMENT_COLORS[name] || '#94a3b8'
+        }));
+
+      // Calculate resolution data
+      const resolvedCount = uniqueConversations.filter(conv => conv.resolved === true).length;
+      const unresolvedCount = uniqueConversations.length - resolvedCount;
+      const resolutionRate = uniqueConversations.length > 0 
+        ? Math.round((resolvedCount / uniqueConversations.length) * 100) 
+        : 0;
+
       if (dailyAnalytics.length > 0) {
         setAnalyticsData(dailyAnalytics);
         setSummary(calculateSummary(dailyAnalytics));
+        setSentimentData(sentimentDistribution);
+        setResolutionData({ resolved: resolvedCount, unresolved: unresolvedCount, resolutionRate });
         toast.success(`Analytics data loaded for ${dailyAnalytics.length} days`);
       } else {
         toast.error('No analytics data found for this period');
         setAnalyticsData([]);
         setSummary(null);
+        setSentimentData([]);
+        setResolutionData(null);
       }
       
     } catch (error) {
@@ -291,6 +354,8 @@ export default function Analytics() {
       toast.error('Failed to fetch analytics data');
       setAnalyticsData([]);
       setSummary(null);
+      setSentimentData([]);
+      setResolutionData(null);
     } finally {
       setIsLoading(false);
     }
@@ -302,51 +367,6 @@ export default function Analytics() {
       fetchAnalytics();
     }
   }, [selectedBotId, startDate, endDate, fetchAnalytics]);
-
-
-
-  // Sort data for table
-  const sortedData = [...analyticsData].sort((a, b) => {
-    let aValue: number | string;
-    let bValue: number | string;
-
-    switch (sortField) {
-      case 'date':
-        aValue = new Date(a.date).getTime();
-        bValue = new Date(b.date).getTime();
-        break;
-      case 'users':
-        aValue = a.uniqueUsers;
-        bValue = b.uniqueUsers;
-        break;
-      case 'userMessages':
-        aValue = a.userMessages;
-        bValue = b.userMessages;
-        break;
-      case 'botMessages':
-        aValue = a.botMessages;
-        bValue = b.botMessages;
-        break;
-      default:
-        return 0;
-    }
-
-    if (sortDirection === 'asc') {
-      return aValue > bValue ? 1 : -1;
-    } else {
-      return aValue < bValue ? 1 : -1;
-    }
-  });
-
-  // Handle sort column click
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('desc');
-    }
-  };
 
   // Prepare chart data with properly formatted dates
   const chartData = analyticsData.map(record => {
@@ -433,178 +453,310 @@ export default function Analytics() {
         </CardContent>
       </Card>
 
-      {/* Summary Cards */}
+      {/* Summary Cards - Row 1 */}
       {summary && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{summary.totalUsers.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Unique interactions</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Conversations</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Conversations</CardTitle>
               <MessageSquare className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{summary.totalConversations.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Total sessions</p>
+              <p className="text-xs text-muted-foreground">
+                {analyticsData.length > 0 && (
+                  <>Avg {Math.round(summary.totalConversations / analyticsData.length)} per day</>
+                )}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Resolution Rate</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {resolutionData ? `${resolutionData.resolutionRate}%` : '—'}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {resolutionData && (
+                  <>{resolutionData.resolved} resolved / {resolutionData.unresolved} unresolved</>
+                )}
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">User Messages</CardTitle>
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{summary.totalUserMessages.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Avg {summary.avgMessagesPerConversation} per conv</p>
+              <p className="text-xs text-muted-foreground">
+                Avg {summary.avgMessagesPerConversation} per conversation
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Bot Messages</CardTitle>
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{summary.totalBotMessages.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Automated replies</p>
+              <p className="text-xs text-muted-foreground">
+                {summary.totalConversations > 0 && (
+                  <>Avg {Math.round(summary.totalBotMessages / summary.totalConversations * 10) / 10} per conversation</>
+                )}
+              </p>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Charts */}
+      {/* Charts Row - Conversations over time + Sentiment Distribution */}
       {analyticsData.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
+        <div className="grid gap-4 md:grid-cols-3">
+          {/* Conversations Over Time - takes 2 columns */}
+          <Card className="md:col-span-2">
             <CardHeader>
-              <CardTitle>Unique Users</CardTitle>
+              <CardTitle>Conversations Over Time</CardTitle>
+              <CardDescription>Daily conversation volume</CardDescription>
             </CardHeader>
             <CardContent>
-              <ChartContainer
-                  config={{
-                    users: {
-                      label: "Users",
-                      color: "hsl(var(--chart-1))",
-                    },
-                  }}
-                  className="h-[300px] w-full"
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart
+                  data={chartData}
+                  margin={{ left: 0, right: 12, top: 12, bottom: 0 }}
                 >
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={chartData}
-                      margin={{
-                        left: 12,
-                        right: 12,
-                      }}
-                    >
-                      <CartesianGrid vertical={false} />
-                      <XAxis 
-                        dataKey="date" 
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                      />
-                      <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
-                      <Area 
-                        dataKey="users" 
-                        type="natural" 
-                        fill="var(--color-users)" 
-                        fillOpacity={0.4} 
-                        stroke="var(--color-users)" 
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </ChartContainer>
+                  <defs>
+                    <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey="date" 
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    className="text-xs"
+                  />
+                  <YAxis 
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    className="text-xs"
+                    width={40}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area 
+                    name="Users"
+                    dataKey="users" 
+                    type="monotone" 
+                    fill="url(#colorUsers)" 
+                    stroke="hsl(var(--chart-1))" 
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
+
+          {/* Sentiment Distribution */}
           <Card>
             <CardHeader>
-              <CardTitle>User Messages</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Smile className="h-4 w-4" />
+                Sentiment Distribution
+              </CardTitle>
+              <CardDescription>Conversation sentiment breakdown</CardDescription>
             </CardHeader>
             <CardContent>
-               <ChartContainer
-                  config={{
-                    userMessages: {
-                      label: "User Messages",
-                      color: "hsl(var(--chart-2))",
-                    },
-                  }}
-                  className="h-[300px] w-full"
-                >
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={chartData}
-                      margin={{
-                        left: 12,
-                        right: 12,
-                      }}
+              {sentimentData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie
+                      data={sentimentData}
+                      cx="50%"
+                      cy="45%"
+                      innerRadius={45}
+                      outerRadius={70}
+                      paddingAngle={2}
+                      dataKey="value"
                     >
-                      <CartesianGrid vertical={false} />
-                      <XAxis 
-                        dataKey="date" 
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                      />
-                      <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
-                      <Area 
-                        dataKey="userMessages" 
-                        type="natural" 
-                        fill="var(--color-userMessages)" 
-                        fillOpacity={0.4} 
-                        stroke="var(--color-userMessages)" 
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </ChartContainer>
+                      {sentimentData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          const total = sentimentData.reduce((sum, d) => sum + d.value, 0);
+                          const percent = total > 0 ? Math.round((data.value / total) * 100) : 0;
+                          return (
+                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3">
+                              <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{data.name}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                                {data.value} conversations ({percent}%)
+                              </p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Legend 
+                      verticalAlign="bottom" 
+                      height={50}
+                      wrapperStyle={{ paddingTop: '10px' }}
+                      formatter={(value) => <span className="text-xs">{value}</span>}
+                    />                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[260px] text-muted-foreground">
+                  <Meh className="h-8 w-8 mr-2" />
+                  No sentiment data
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Table */}
+      {/* Second Charts Row - Messages + Resolution */}
       {analyticsData.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-3">
+          {/* User Messages Over Time */}
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle>User Messages Over Time</CardTitle>
+              <CardDescription>Daily user message volume</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart
+                  data={chartData}
+                  margin={{ left: 0, right: 12, top: 12, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="colorUserMessages" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey="date" 
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    className="text-xs"
+                  />
+                  <YAxis 
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    className="text-xs"
+                    width={40}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area 
+                    name="User Messages"
+                    dataKey="userMessages" 
+                    type="monotone" 
+                    fill="url(#colorUserMessages)" 
+                    stroke="hsl(var(--chart-2))" 
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Resolution Rate Visual */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" />
+                Resolution Status
+              </CardTitle>
+              <CardDescription>Resolved vs unresolved conversations</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {resolutionData ? (
+                <div className="space-y-6">
+                  {/* Circular progress indicator */}
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="relative">
+                      <svg className="h-32 w-32 transform -rotate-90">
+                        <circle
+                          className="text-muted stroke-current"
+                          strokeWidth="12"
+                          fill="transparent"
+                          r="52"
+                          cx="64"
+                          cy="64"
+                        />
+                        <circle
+                          className="text-green-500 stroke-current transition-all duration-500"
+                          strokeWidth="12"
+                          strokeLinecap="round"
+                          fill="transparent"
+                          r="52"
+                          cx="64"
+                          cy="64"
+                          strokeDasharray={`${resolutionData.resolutionRate * 3.27} 327`}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-3xl font-bold">{resolutionData.resolutionRate}%</span>
+                        <span className="text-xs text-muted-foreground">Resolved</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stats bars */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 w-3 rounded-full bg-green-500" />
+                        <span className="text-sm">Resolved</span>
+                      </div>
+                      <span className="font-medium">{resolutionData.resolved}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 w-3 rounded-full bg-red-500" />
+                        <span className="text-sm">Unresolved</span>
+                      </div>
+                      <span className="font-medium">{resolutionData.unresolved}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-[260px] text-muted-foreground">
+                  <XCircle className="h-8 w-8 mr-2" />
+                  No resolution data
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isLoading && analyticsData.length === 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle>Daily Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort('date')}>Date</TableHead>
-                  <TableHead className="text-right cursor-pointer" onClick={() => handleSort('users')}>Users</TableHead>
-                  <TableHead className="text-right cursor-pointer" onClick={() => handleSort('userMessages')}>User Msgs</TableHead>
-                  <TableHead className="text-right cursor-pointer" onClick={() => handleSort('botMessages')}>Bot Msgs</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedData.map((record, index) => {
-                   let formattedDate = record.date;
-                    try {
-                      const dateObj = new Date(record.date);
-                      if (!isNaN(dateObj.getTime())) {
-                        formattedDate = format(dateObj, 'MMM dd, yyyy');
-                      }
-                    } catch (e) {}
-                  return (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{formattedDate}</TableCell>
-                      <TableCell className="text-right">{record.uniqueUsers}</TableCell>
-                      <TableCell className="text-right">{record.userMessages}</TableCell>
-                      <TableCell className="text-right">{record.botMessages}</TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <BarChart3 className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No Analytics Data</h3>
+            <p className="text-muted-foreground text-center max-w-md">
+              Select a bot and date range, then click "Update View" to load analytics data.
+            </p>
           </CardContent>
         </Card>
       )}
