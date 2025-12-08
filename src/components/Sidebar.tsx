@@ -11,7 +11,7 @@ import {
   LineChart
 } from 'lucide-react';
 import type { UserRole } from '@/contexts/AuthContext';
-import bayrolIcon from '/iconBayrol.png';
+import bayrolIcon from '@/assets/iconBayrol.png';
 
 import { NavMain } from "@/components/nav-main"
 import { NavKnowledge } from "@/components/nav-knowledge"
