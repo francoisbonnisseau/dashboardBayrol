@@ -11,6 +11,7 @@ import {
   LineChart
 } from 'lucide-react';
 import type { UserRole } from '@/contexts/AuthContext';
+import bayrolIcon from '/iconBayrol.png';
 
 import { NavMain } from "@/components/nav-main"
 import { NavKnowledge } from "@/components/nav-knowledge"
@@ -95,7 +96,7 @@ export function AppSidebar({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden">
-                <img src="/iconBayrol.png" alt="Bayrol" className="size-8 object-contain" />
+                <img src={bayrolIcon} alt="Bayrol" className="size-8 object-contain" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">Bayrol</span>
