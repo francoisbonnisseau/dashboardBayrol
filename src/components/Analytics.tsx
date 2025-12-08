@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, MessageSquare, BarChart3, CheckCircle2, XCircle, TrendingUp, Smile, Meh } from 'lucide-react';
+import { Loader2, Users, MessageSquare, BarChart3, CheckCircle2, XCircle, Smile, Meh, Bot } from 'lucide-react';
 import { subDays, format } from 'date-fns';
 import { toast } from 'sonner';
-import { Area, AreaChart, XAxis, YAxis, ResponsiveContainer, CartesianGrid, Tooltip, PieChart, Pie, Cell, Legend } from 'recharts';
+import { Area, AreaChart, XAxis, YAxis, ResponsiveContainer, CartesianGrid, Tooltip } from 'recharts';
 
 const TABLE_NAME = 'conversationsAnalysisTable';
 
@@ -70,7 +70,8 @@ interface AnalyticsSummary {
   totalUserMessages: number;
   totalBotMessages: number;
   totalConversations: number;
-  avgMessagesPerConversation: number;
+  avgUserMessagesPerConversation: number;
+  avgBotMessagesPerConversation: number;
 }
 
 interface SentimentData {
@@ -116,7 +117,8 @@ export default function Analytics() {
         totalUserMessages: 0,
         totalBotMessages: 0,
         totalConversations: 0,
-        avgMessagesPerConversation: 0
+        avgUserMessagesPerConversation: 0,
+        avgBotMessagesPerConversation: 0
       };
     }
 
@@ -130,8 +132,11 @@ export default function Analytics() {
       totalUserMessages,
       totalBotMessages,
       totalConversations,
-      avgMessagesPerConversation: totalConversations > 0 
-        ? Math.round((totalUserMessages + totalBotMessages) / totalConversations * 10) / 10 
+      avgUserMessagesPerConversation: totalConversations > 0 
+        ? Math.round((totalUserMessages / totalConversations) * 10) / 10 
+        : 0,
+      avgBotMessagesPerConversation: totalConversations > 0 
+        ? Math.round((totalBotMessages / totalConversations) * 10) / 10 
         : 0
     };
   }, []);
@@ -456,59 +461,74 @@ export default function Analytics() {
       {/* Summary Cards - Row 1 */}
       {summary && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
+          <Card className="relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 -mr-6 -mt-6 rounded-full bg-orange-500/10" />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Conversations</CardTitle>
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <div className="h-8 w-8 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <MessageSquare className="h-4 w-4 text-orange-600" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{summary.totalConversations.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-3xl font-bold">{summary.totalConversations.toLocaleString()}</div>
+              <p className="text-sm text-muted-foreground mt-1">
                 {analyticsData.length > 0 && (
-                  <>Avg {Math.round(summary.totalConversations / analyticsData.length)} per day</>
+                  <span className="inline-flex items-center">
+                    ~{Math.round(summary.totalConversations / analyticsData.length)} per day
+                  </span>
                 )}
               </p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 -mr-6 -mt-6 rounded-full bg-green-500/10" />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Resolution Rate</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+              <div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-3xl font-bold">
                 {resolutionData ? `${resolutionData.resolutionRate}%` : '—'}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <div className="flex items-center gap-3 mt-1">
                 {resolutionData && (
-                  <>{resolutionData.resolved} resolved / {resolutionData.unresolved} unresolved</>
+                  <>
+                    <span className="text-sm text-green-600">{resolutionData.resolved} ✓</span>
+                    <span className="text-sm text-red-500">{resolutionData.unresolved} ✗</span>
+                  </>
                 )}
-              </p>
+              </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 -mr-6 -mt-6 rounded-full bg-teal-500/10" />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">User Messages</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <div className="h-8 w-8 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                <Users className="h-4 w-4 text-teal-600" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{summary.totalUserMessages.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
-                Avg {summary.avgMessagesPerConversation} per conversation
+              <div className="text-3xl font-bold">{summary.totalUserMessages.toLocaleString()}</div>
+              <p className="text-sm text-muted-foreground mt-1">
+                ~{summary.avgUserMessagesPerConversation} per conversation
               </p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 -mr-6 -mt-6 rounded-full bg-purple-500/10" />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Bot Messages</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Bot Responses</CardTitle>
+              <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                <Bot className="h-4 w-4 text-purple-600" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{summary.totalBotMessages.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
-                {summary.totalConversations > 0 && (
-                  <>Avg {Math.round(summary.totalBotMessages / summary.totalConversations * 10) / 10} per conversation</>
-                )}
+              <div className="text-3xl font-bold">{summary.totalBotMessages.toLocaleString()}</div>
+              <p className="text-sm text-muted-foreground mt-1">
+                ~{summary.avgBotMessagesPerConversation} per conversation
               </p>
             </CardContent>
           </Card>
@@ -532,8 +552,8 @@ export default function Analytics() {
                 >
                   <defs>
                     <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#e76e50" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#e76e50" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -557,7 +577,7 @@ export default function Analytics() {
                     dataKey="users" 
                     type="monotone" 
                     fill="url(#colorUsers)" 
-                    stroke="hsl(var(--chart-1))" 
+                    stroke="#e76e50" 
                     strokeWidth={2}
                   />
                 </AreaChart>
@@ -565,7 +585,7 @@ export default function Analytics() {
             </CardContent>
           </Card>
 
-          {/* Sentiment Distribution */}
+          {/* Sentiment Distribution - Horizontal Bars */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -576,48 +596,35 @@ export default function Analytics() {
             </CardHeader>
             <CardContent>
               {sentimentData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart>
-                    <Pie
-                      data={sentimentData}
-                      cx="50%"
-                      cy="45%"
-                      innerRadius={45}
-                      outerRadius={70}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {sentimentData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload;
-                          const total = sentimentData.reduce((sum, d) => sum + d.value, 0);
-                          const percent = total > 0 ? Math.round((data.value / total) * 100) : 0;
-                          return (
-                            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3">
-                              <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{data.name}</p>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
-                                {data.value} conversations ({percent}%)
-                              </p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Legend 
-                      verticalAlign="bottom" 
-                      height={50}
-                      wrapperStyle={{ paddingTop: '10px' }}
-                      formatter={(value) => <span className="text-xs">{value}</span>}
-                    />                  </PieChart>
-                </ResponsiveContainer>
+                <div className="space-y-3">
+                  {(() => {
+                    const total = sentimentData.reduce((sum, d) => sum + d.value, 0);
+                    return sentimentData.map((item) => {
+                      const percent = total > 0 ? Math.round((item.value / total) * 100) : 0;
+                      return (
+                        <div key={item.name} className="space-y-1.5">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium">{item.name}</span>
+                            <span className="text-muted-foreground">
+                              {item.value} ({percent}%)
+                            </span>
+                          </div>
+                          <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{
+                                width: `${percent}%`,
+                                backgroundColor: item.color,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
               ) : (
-                <div className="flex items-center justify-center h-[260px] text-muted-foreground">
+                <div className="flex items-center justify-center h-[200px] text-muted-foreground">
                   <Meh className="h-8 w-8 mr-2" />
                   No sentiment data
                 </div>
@@ -644,8 +651,8 @@ export default function Analytics() {
                 >
                   <defs>
                     <linearGradient id="colorUserMessages" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#2a9d90" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#2a9d90" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -669,7 +676,7 @@ export default function Analytics() {
                     dataKey="userMessages" 
                     type="monotone" 
                     fill="url(#colorUserMessages)" 
-                    stroke="hsl(var(--chart-2))" 
+                    stroke="#2a9d90" 
                     strokeWidth={2}
                   />
                 </AreaChart>
