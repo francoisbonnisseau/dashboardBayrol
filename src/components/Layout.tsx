@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { AppSidebar } from './Sidebar';
 import type { UserRole } from '@/contexts/AuthContext';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
