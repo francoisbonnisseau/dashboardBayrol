@@ -37,8 +37,8 @@ window.initCustomWebchat({
         defaultThinkingMessage: "Réflexion...",
 
         // === Navigation header (optionnel) ===
-        headerAvatarLink: "https://www.example.com", // URL ouverte dans un nouvel onglet au clic sur l'avatar
-        mobileCloseRedirectUrl: "https://www.example.com", // URL de redirection au clic sur la croix (mobile uniquement)
+        headerAvatarLink: "https://www.bayrol.fr", // URL ouverte dans un nouvel onglet au clic sur l'avatar
+        mobileCloseRedirectUrl: "https://www.bayrol.fr", // URL de redirection au clic sur la croix (mobile uniquement)
 
         // === Message proactif (bulle automatique) ===
         proactiveMessageEnabled: false,
@@ -50,4 +50,5 @@ window.initCustomWebchat({
         fabImage: "https://www.bayrol.fr/sites/bayrol/files/2025-07/Assistant-Bubble.png"
     }
 });
+
 
