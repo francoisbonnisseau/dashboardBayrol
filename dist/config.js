@@ -41,7 +41,7 @@ window.initCustomWebchat({
         mobileCloseRedirectUrl: "https://www.example.com", // URL de redirection au clic sur la croix (mobile uniquement)
 
         // === Message proactif (bulle automatique) ===
-        proactiveMessageEnabled: true,
+        proactiveMessageEnabled: false,
         proactiveBubbleMessage: "Hi! 👋 Comment puis-je vous aider ?",
         proactiveBubbleTriggerType: "afterDelay", // "afterDelay", "onScroll", "never"
         proactiveBubbleDelayTime: 5, // secondes avant affichage
@@ -50,3 +50,4 @@ window.initCustomWebchat({
         fabImage: "https://www.bayrol.fr/sites/bayrol/files/2025-07/Assistant-Bubble.png"
     }
 });
+
