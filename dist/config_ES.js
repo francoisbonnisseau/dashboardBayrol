@@ -40,7 +40,7 @@ window.initCustomWebchat({
         mobileCloseRedirectUrl: "https://www.example.com",
 
         // === Message proactif (bulle automatique) ===
-        proactiveMessageEnabled: true,
+        proactiveMessageEnabled: false,
         proactiveBubbleMessage: "¡Hola! 👋 ¿En qué puedo ayudarte?",
         proactiveBubbleTriggerType: "afterDelay",
         proactiveBubbleDelayTime: 5,
@@ -52,3 +52,4 @@ window.initCustomWebchat({
         additionalStylesheetUrl: "https://files.bpcontent.cloud/2025/05/22/08/20250522085818-PQGM1TKG.css"
     }
 });
+
