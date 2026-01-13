@@ -53,3 +53,4 @@ window.initCustomWebchat({
         additionalStylesheetUrl: "https://files.bpcontent.cloud/2025/06/10/19/20250610192013-GCPI8Q3O.css"
     }
 });
+
