@@ -95,7 +95,68 @@
     <!-- Load the webchat -->
     <script src="https://francoisbonnisseau.github.io/dashboardBayrol/dist/inject.js"></script>
     <script src="https://francoisbonnisseau.github.io/dashboardBayrol/dist/config_FR_Service_Client.js" defer></script>
+    <script>
+        // Script to move the chat and force it open
+        document.addEventListener('DOMContentLoaded', () => {
+            const wrapper = document.getElementById('chat-wrapper');
+            let moved = false;
 
+            const observer = new MutationObserver((mutations) => {
+                const container = document.getElementById('custom-botpress-webchat-container');
+                if (container && !moved) {
+                    // Move the container inside our wrapper
+                    wrapper.innerHTML = ''; // Remove loading content
+                    wrapper.appendChild(container);
+                    moved = true;
+
+                    // Apply styles to override fixed positioning and make it full page
+                    const style = document.createElement('style');
+                    style.innerHTML = `
+                        #custom-botpress-webchat-container {
+                            width: 100% !important;
+                            height: 100% !important;
+                            position: static !important;
+                        }
+                        
+                        /* Target the inner React Container component */
+                        #custom-botpress-webchat-container > div {
+                            width: 100% !important;
+                            height: 100% !important;
+                            position: static !important;
+                            box-shadow: none !important;
+                            border-radius: 0 !important;
+                            display: flex !important;
+                            top: 0 !important;
+                            left: 0 !important;
+                            bottom: 0 !important;
+                            right: 0 !important;
+                        }
+
+                        /* Hide the floating button */
+                        #custom-botpress-webchat-container button[style*="position: fixed"] {
+                            display: none !important;
+                        }
+                    `;
+                    document.head.appendChild(style);
+
+                    // Click the FAB to open the chat
+                    setTimeout(() => {
+                        const fab = container.querySelector('button');
+                        if (fab) {
+                            fab.click();
+                        }
+
+                        // Send URL params after chat is open
+                        setTimeout(() => {
+                            sendUrlParamsEvent();
+                        }, 500);
+                    }, 500);
+                }
+            });
+
+            observer.observe(document.body, { childList: true, subtree: true });
+        });
+    </script>
 </body>
 
 
