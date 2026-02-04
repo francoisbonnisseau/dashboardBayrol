@@ -3,7 +3,7 @@ window.initCustomWebchat({
     clientId: "a2bb79b3-424d-499b-b2c4-c38f6ebfda30",
     configuration: {
         // === Identité du bot ===
-        botName: "Assistant Digital BAYROL",
+        botName: "Assistant Digital BAYROL - Service Client",
         botAvatar: "https://files.bpcontent.cloud/2025/07/03/08/20250703081111-XRZRAKW4.png", // URL de l'avatar du bot (optionnel)
         botDescription: "Vous avez des questions générales sur l'entretien de la piscine ou sur les produits BAYROL ? Je suis là pour vous aider. Je peux aussi transmettre votre demande à notre service client BAYROL si vous souhaitez une aide plus personnalisée. J'utilise l’intelligence artificielle pour vous assister, mais il peut m'arriver de me tromper. Veillez toujours à suivre les instructions indiquées sur l’emballage du produit.",
 
