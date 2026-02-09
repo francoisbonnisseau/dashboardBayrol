@@ -9,7 +9,7 @@ window.initCustomWebchat({
 
         // === Composer (zone de saisie) ===
         composerPlaceholder: "¡Hola! ¿En qué puedo ayudarte?",
-        allowFileUpload: false,
+        allowFileUpload: true,
 
         // === Thème ===
         color: "#009aa6",
@@ -36,8 +36,8 @@ window.initCustomWebchat({
         defaultThinkingMessage: "Pensando...",
 
         // === Navigation header (optionnel) ===
-        headerAvatarLink: "https://www.example.com",
-        mobileCloseRedirectUrl: "https://www.example.com",
+        headerAvatarLink: "https://www.bayrol.es",
+        mobileCloseRedirectUrl: "https://www.bayrol.es",
 
         // === Message proactif (bulle automatique) ===
         proactiveMessageEnabled: false,
