@@ -9,7 +9,7 @@ window.initCustomWebchat({
 
         // === Composer (zone de saisie) ===
         composerPlaceholder: "Tippen Sie hier Ihre Frage ein …",
-        allowFileUpload: false,
+        allowFileUpload: true,
 
         // === Thème ===
         color: "#009aa6",
@@ -30,15 +30,14 @@ window.initCustomWebchat({
 
         // === Fonctionnalités ===
         feedbackEnabled: true,
-        showPoweredBy: true,
         soundEnabled: false,
 
         // === Message de réflexion par défaut ===
         defaultThinkingMessage: "Denken...",
 
         // === Navigation header (optionnel) ===
-        headerAvatarLink: "https://www.example.com",
-        mobileCloseRedirectUrl: "https://www.example.com",
+        headerAvatarLink: "https://www.bayrol.de",
+        mobileCloseRedirectUrl: "https://www.bayrol.de",
 
         // === Message proactif (bulle automatique) ===
         proactiveMessageEnabled: false,
