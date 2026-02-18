@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed&display=swap');
+
+.bpMessageBlocksBubble {
+    font-family: 'Roboto Condensed', sans-serif;
+    font-weight: 400; /* Regular */
+    letter-spacing: 0.5px;
+}
+
+.bpMessageBlocksBubble[data-direction='outgoing'] {
+    background-color: #009aa6 !important;
+    color: #ffffff;
+}
+
+.bpMessageBlocksBubble[data-direction='incoming'] {
+    background-color: #d5ecef !important;
+    color: #00384f;
+}
+
+.bpMessageBlocksButton {
+    background-color: transparent; 
+    font-family: 'Roboto Condensed', sans-serif; 
+    text-align: left;
+    border: 1px solid #eee;
+    color: #00384f;
+    transition: border .5s ease;
+}
+
+.bpMessageBlocksButton:hover {
+    background-color: transparent; 
+    font-family: 'Roboto Condensed', sans-serif; 
+    text-align: left;
+    border: 1px solid #00384f;
+}
