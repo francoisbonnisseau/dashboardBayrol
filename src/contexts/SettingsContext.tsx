@@ -12,6 +12,7 @@ const defaultBots: BotConfig[] = [
   { id: 'fr', name: 'FR version', botId: import.meta.env.VITE_BOTPRESS_BOT_ID_FR || '' },
   { id: 'de', name: 'DE version', botId: import.meta.env.VITE_BOTPRESS_BOT_ID_DE || '' },
   { id: 'es', name: 'ES version', botId: import.meta.env.VITE_BOTPRESS_BOT_ID_ES || '' },
+  { id: 'leroy-merlin-es', name: 'Leroy Merlin - ES', botId: import.meta.env.VITE_BOTPRESS_BOT_ID_LEROY_MERLIN_ES },
 ];
 
 const defaultSettings: AppSettings = {

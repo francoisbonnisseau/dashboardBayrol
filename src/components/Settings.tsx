@@ -14,13 +14,15 @@ export default function Settings() {
   const [syncStatus, setSyncStatus] = useState<Record<string, 'idle' | 'loading' | 'success' | 'error'>>({
     'fr': 'idle',
     'de': 'idle',
-    'es': 'idle'
+    'es': 'idle',
+    'leroy-merlin-es': 'idle'
   });
 
   const webhooks = {
     'fr': 'https://webhook.botpress.cloud/c9176623-9e4b-40ad-a4c6-7a2a4b20f2bc',
     'de': 'https://webhook.botpress.cloud/4c99d505-0734-4f7d-beec-85281b5e339b',
-    'es': 'https://webhook.botpress.cloud/16dcf4f1-a0b5-429e-be31-de16418a136a'
+    'es': 'https://webhook.botpress.cloud/16dcf4f1-a0b5-429e-be31-de16418a136a',
+    'leroy-merlin-es': 'https://webhook.botpress.cloud/ea737568-7729-426e-86b4-622f1ab092d7'
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,6 +45,14 @@ export default function Settings() {
     
     try {
       const webhookUrl = webhooks[botKey as keyof typeof webhooks];
+
+      if (!webhookUrl) {
+        setSyncStatus(prev => ({ ...prev, [botKey]: 'error' }));
+        setTimeout(() => {
+          setSyncStatus(prev => ({ ...prev, [botKey]: 'idle' }));
+        }, 3000);
+        return;
+      }
       
       // Open the webhook URL in a hidden iframe
       const iframe = document.createElement('iframe');
@@ -143,7 +153,7 @@ export default function Settings() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* FR Bot Sync */}
               <div className="border rounded-md p-4">
                 <div className="flex justify-between items-center mb-2">
@@ -207,6 +217,28 @@ export default function Settings() {
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Trigger synchronization for Spanish bot
+                </p>
+              </div>
+
+              {/* Leroy Merlin ES Bot Sync */}
+              <div className="border rounded-md p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-medium">Leroy Merlin - ES</h3>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSync('leroy-merlin-es')}
+                    disabled={syncStatus['leroy-merlin-es'] === 'loading'}
+                    className="flex items-center gap-2"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${syncStatus['leroy-merlin-es'] === 'loading' ? 'animate-spin' : ''}`} />
+                    {syncStatus['leroy-merlin-es'] === 'loading' ? 'Syncing...' : 
+                     syncStatus['leroy-merlin-es'] === 'success' ? 'Synced!' : 
+                     syncStatus['leroy-merlin-es'] === 'error' ? 'Failed!' : 'Sync'}
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Trigger synchronization for Leroy Merlin Spanish bot
                 </p>
               </div>
             </div>
