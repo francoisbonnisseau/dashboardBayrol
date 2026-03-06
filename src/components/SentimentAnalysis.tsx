@@ -10,6 +10,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { RefreshCw, BarChart3, ThumbsUp, ThumbsDown, CheckCircle2, XCircle, Download } from 'lucide-react';
 import { subDays } from 'date-fns';
 import ConversationDetail from './ConversationDetail';
+import { formatBotpressError } from '@/lib/errorMessages';
 
 const TABLE_NAME = 'conversationsAnalysisTable';
 
@@ -127,7 +128,7 @@ export default function SentimentAnalysis() {
       
       setRows(formattedRows);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch rows');
+      setError(formatBotpressError(err, 'Failed to fetch rows'));
       console.error('Error fetching rows:', err);    } finally {
       setLoading(false);
     }
@@ -149,7 +150,7 @@ export default function SentimentAnalysis() {
       // Now fetch rows
       await fetchRows();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch table information');
+      setError(formatBotpressError(err, 'Failed to fetch table information'));
       console.error('Error fetching table info:', err);
     } finally {
       setLoading(false);
@@ -517,7 +518,8 @@ export default function SentimentAnalysis() {
               </CardContent>
             </Card>
           ) : (
-            <div className="border rounded-md overflow-hidden">              <Table className="w-full">
+            <div className="border rounded-md overflow-hidden">
+              <Table className="w-full">
                 <TableHeader className="bg-muted/30">
                   <TableRow>
                     <TableHead className="w-[20%]">Date</TableHead>
@@ -527,12 +529,14 @@ export default function SentimentAnalysis() {
                     <TableHead className="w-[20%]">ConversationId</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>                  {filteredRows.map((row) => (
+                <TableBody>
+                  {filteredRows.map((row) => (
                     <TableRow 
                       key={row.id} 
                       className="hover:bg-muted/50 cursor-pointer" 
                       onClick={() => handleRowClick(row.conversationId)}
-                    >                      <TableCell className="text-sm">{formatDate(row.date)}</TableCell>
+                    >
+                      <TableCell className="text-sm">{formatDate(row.date)}</TableCell>
                       <TableCell className="font-medium">
                         <div className="max-w-[200px] truncate" title={row.topics || ''}>
                           {row.topics || '—'}

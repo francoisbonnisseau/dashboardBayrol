@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import type { AppSettings } from '../types';
 
 export default function Settings() {
   const { settings, updateSettings } = useSettings();
+  const secureConfigEnabled = import.meta.env.VITE_SECURE_CONFIG_ENABLED === 'true';
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [isSaving, setIsSaving] = useState(false);
   const [syncStatus, setSyncStatus] = useState<Record<string, 'idle' | 'loading' | 'success' | 'error'>>({
@@ -25,12 +26,20 @@ export default function Settings() {
     'leroy-merlin-es': 'https://webhook.botpress.cloud/ea737568-7729-426e-86b4-622f1ab092d7'
   };
 
+  useEffect(() => {
+    setFormData(settings);
+  }, [settings]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     
     try {
-      updateSettings(formData);
+      updateSettings(
+        secureConfigEnabled
+          ? { ...formData, token: settings.token, workspaceId: settings.workspaceId }
+          : formData
+      );
       // Show success feedback
       await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
@@ -92,7 +101,9 @@ export default function Settings() {
           <CardHeader>
             <CardTitle>General Configuration</CardTitle>
             <CardDescription>
-              Configure your Botpress workspace and authentication
+              {secureConfigEnabled
+                ? 'Botpress credentials are managed by Supabase Edge Functions'
+                : 'Configure your Botpress workspace and authentication'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -101,21 +112,23 @@ export default function Settings() {
               <Input
                 id="token"
                 type="password"
-                placeholder="Enter your Botpress API token"
-                value={formData.token}
+                placeholder={secureConfigEnabled ? 'Managed by secure backend' : 'Enter your Botpress API token'}
+                value={secureConfigEnabled ? (settings.token ? '****************' : '') : formData.token}
                 onChange={(e) => setFormData(prev => ({ ...prev, token: e.target.value }))}
-                required
+                required={!secureConfigEnabled}
+                disabled={secureConfigEnabled}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="workspaceId">Workspace ID</Label>
               <Input
                 id="workspaceId"
-                placeholder="Enter your workspace ID"
-                value={formData.workspaceId}
+                placeholder={secureConfigEnabled ? 'Managed by secure backend' : 'Enter your workspace ID'}
+                value={secureConfigEnabled ? settings.workspaceId : formData.workspaceId}
                 onChange={(e) => setFormData(prev => ({ ...prev, workspaceId: e.target.value }))}
-                required
+                required={!secureConfigEnabled}
+                disabled={secureConfigEnabled}
               />
             </div>
           </CardContent>
@@ -135,9 +148,10 @@ export default function Settings() {
                 <Label htmlFor={`bot-${bot.id}`}>{bot.name} Bot ID</Label>
                 <Input
                   id={`bot-${bot.id}`}
-                  placeholder={`Enter Bot ID for ${bot.name}`}
+                  placeholder={secureConfigEnabled ? 'Managed by secure backend' : `Enter Bot ID for ${bot.name}`}
                   value={bot.botId}
                   onChange={(e) => handleBotIdChange(bot.id, e.target.value)}
+                  disabled={secureConfigEnabled}
                 />
               </div>
             ))}

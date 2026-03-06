@@ -9,16 +9,17 @@ import {
 } from '@/components/ui/sheet';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-  MessageCircle, 
-  ArrowLeft, 
-  RefreshCw, 
+import {
+  MessageCircle,
+  ArrowLeft,
+  RefreshCw,
   User, 
   Bot, 
   Clock,
   ExternalLink
 } from 'lucide-react';
 import type { Message } from '../types';
+import { formatBotpressError } from '@/lib/errorMessages';
 
 interface ConversationDetailProps {
   botId: string; 
@@ -46,7 +47,7 @@ export default function ConversationDetail({ botId, conversationId, onClose, ope
       const response = await client.listMessages({ conversationId });
       setMessages(response.messages || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch messages');
+      setError(formatBotpressError(err, 'Failed to fetch messages'));
       console.error('Error fetching messages:', err);
     } finally {
       setLoading(false);
@@ -106,11 +107,10 @@ export default function ConversationDetail({ botId, conversationId, onClose, ope
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
-          <SheetDescription>
-            <div className="flex items-center justify-between mt-2">
-              <span className="font-mono text-xs">{conversationId}</span>
-            </div>
-          </SheetDescription>
+          <SheetDescription className="mt-2">Conversation identifier</SheetDescription>
+          <div className="flex items-center justify-between mt-2 text-muted-foreground">
+            <span className="font-mono text-xs">{conversationId}</span>
+          </div>
         </SheetHeader>
         
         <div className="sheet-scrollable-content py-6 px-4 bg-white" ref={messagesContainerRef}>

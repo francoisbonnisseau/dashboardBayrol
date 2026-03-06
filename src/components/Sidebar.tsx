@@ -7,6 +7,7 @@ import {
   Brain, 
   BookOpen, 
   FileText, 
+  FileCode2,
   MessageSquare, 
   LineChart
 } from 'lucide-react';
@@ -25,7 +26,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-type ViewType = 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'analytics';
+type ViewType = 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'codeText' | 'analytics';
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   activeView: ViewType;
@@ -70,6 +71,11 @@ export function AppSidebar({
       title: "Intro",
       icon: FileText,
       view: "intro",
+    },
+    {
+      title: "Code Text",
+      icon: FileCode2,
+      view: "codeText",
     },
     ...(userRole === 'admin' ? [{
       title: "AI Analysis",

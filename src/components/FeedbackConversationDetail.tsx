@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { Message } from '../types';
+import { formatBotpressError } from '@/lib/errorMessages';
 
 interface FeedbackRow {
   id: number;
@@ -75,7 +76,7 @@ export default function FeedbackConversationDetail({
       const response = await client.listMessages({ conversationId });
       setMessages(response.messages || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch messages');
+      setError(formatBotpressError(err, 'Failed to fetch messages'));
       console.error('Error fetching messages:', err);
     } finally {
       setLoading(false);
@@ -166,37 +167,35 @@ export default function FeedbackConversationDetail({
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
-          <SheetDescription>
-            <div className="flex flex-col gap-3 mt-2">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs">{conversationId}</span>
-              </div>
-              
-              {/* Feedback info */}
-              <div className="flex flex-col gap-2 p-3 bg-muted/20 rounded-md">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={`${getReactionColor(feedback.reaction)} flex items-center gap-1`}>
-                      {getReactionIcon(feedback.reaction)}
-                      {feedback.reaction} feedback
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      on {formatDate(feedback.messageDate)}
-                    </span>
-                  </div>
-                </div>
-                
-                {feedback.reaction === 'negative' && feedback.comment && (
-                  <Alert className="mt-2">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription className="text-sm">
-                      <strong>User comment:</strong> {feedback.comment}
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
+          <SheetDescription className="mt-2">Conversation and feedback context</SheetDescription>
+          <div className="flex flex-col gap-3 mt-2 text-muted-foreground">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-xs">{conversationId}</span>
             </div>
-          </SheetDescription>
+
+            <div className="flex flex-col gap-2 p-3 bg-muted/20 rounded-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={`${getReactionColor(feedback.reaction)} flex items-center gap-1`}>
+                    {getReactionIcon(feedback.reaction)}
+                    {feedback.reaction} feedback
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    on {formatDate(feedback.messageDate)}
+                  </span>
+                </div>
+              </div>
+
+              {feedback.reaction === 'negative' && feedback.comment && (
+                <Alert className="mt-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    <strong>User comment:</strong> {feedback.comment}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </div>
         </SheetHeader>
         
         <div className="sheet-scrollable-content py-6 px-4 bg-white" ref={messagesContainerRef}>

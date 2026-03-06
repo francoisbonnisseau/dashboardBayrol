@@ -308,7 +308,7 @@ export default function Analysis() {
                   <SelectValue placeholder="Select a bot" />
                 </SelectTrigger>
                 <SelectContent>
-                  {settings.bots.map(bot => (
+                  {settings.bots.filter((bot) => bot.botId).map(bot => (
                     <SelectItem key={bot.id} value={bot.botId}>
                       {bot.name}
                     </SelectItem>

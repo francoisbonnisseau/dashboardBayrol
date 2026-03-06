@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { DatePicker } from '@/components/ui/date-picker';
 import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Download } from 'lucide-react';
 import FeedbackConversationDetail from './FeedbackConversationDetail';
+import { formatBotpressError } from '@/lib/errorMessages';
 
 const TABLE_NAME = 'feedbacksTable';
 
@@ -122,7 +123,7 @@ export default function Feedbacks() {
       
       setRows(formattedRows);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch feedbacks');
+      setError(formatBotpressError(err, 'Failed to fetch feedbacks'));
       console.error('Error fetching feedbacks:', err);
     } finally {
       setLoading(false);
@@ -146,7 +147,7 @@ export default function Feedbacks() {
       // Now fetch rows
       await fetchRows();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch table information');
+      setError(formatBotpressError(err, 'Failed to fetch table information'));
       console.error('Error fetching table info:', err);
     } finally {
       setLoading(false);

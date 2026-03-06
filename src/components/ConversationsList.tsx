@@ -10,6 +10,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { addMonths, startOfDay, endOfDay, isAfter, isBefore, parseISO } from 'date-fns';
 import ConversationDetail from './ConversationDetail';
 import type { Conversation } from '../types';
+import { formatBotpressError } from '@/lib/errorMessages';
 
 interface ConversationWithMessages extends Conversation {
   hasMessages?: boolean;
@@ -81,7 +82,7 @@ export default function ConversationsList() {
       
       setNextToken(response.meta?.nextToken);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch conversations');
+      setError(formatBotpressError(err, 'Failed to fetch conversations'));
       console.error('Error fetching conversations:', err);
     } finally {
       setLoading(false);
@@ -156,7 +157,7 @@ export default function ConversationsList() {
       console.log(`Smart fetch completed: ${allConversations.length} total conversations loaded in ${iterations + 1} iterations`);
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch conversations');
+      setError(formatBotpressError(err, 'Failed to fetch conversations'));
       console.error('Error in smart fetch:', err);
     } finally {
       setLoading(false);

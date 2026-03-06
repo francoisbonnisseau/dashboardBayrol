@@ -21,14 +21,21 @@ A modern React dashboard for visualizing Botpress bot conversations across multi
 
 ### Environment Variables
 
-The dashboard supports environment variables for pre-configuring Botpress settings. This allows you to share the dashboard without requiring users to enter settings each time.
-
 1. Copy the `.env.example` file to `.env`:
    ```bash
    cp .env.example .env
    ```
 
-2. Fill in your Botpress credentials in the `.env` file:
+2. Configure secure mode with Supabase Edge Functions:
+   ```env
+   VITE_AUTH_ENABLED=true
+   VITE_USE_SUPABASE_EDGE_AUTH=true
+   VITE_SECURE_CONFIG_ENABLED=true
+   VITE_SUPABASE_FUNCTIONS_URL=https://<project-ref>.functions.supabase.co
+   VITE_SUPABASE_ANON_KEY=<your-anon-key>
+   ```
+
+3. Legacy fallback variables are still supported if you disable secure mode:
    ```env
    VITE_BOTPRESS_TOKEN=your_token_here
    VITE_BOTPRESS_WORKSPACE_ID=your_workspace_id
@@ -37,7 +44,28 @@ The dashboard supports environment variables for pre-configuring Botpress settin
    VITE_BOTPRESS_BOT_ID_ES=spanish_bot_id
    ```
 
-3. Users can still override these settings via the Settings tab in the UI if needed.
+### Supabase Setup (Custom Auth + Secure Botpress Token)
+
+1. Run SQL setup in Supabase SQL Editor:
+   - `supabase/sql/dashboard_auth_setup.sql`
+2. Deploy Edge Functions:
+   ```bash
+   supabase functions deploy dashboard-login
+   supabase functions deploy dashboard-get-botpress-token
+   ```
+   Then disable JWT verification for both functions in Supabase Dashboard (Function Settings).
+3. Set Edge Function secrets:
+   ```bash
+   supabase secrets set \
+     BOTPRESS_TOKEN=... \
+     BOTPRESS_WORKSPACE_ID=... \
+     BOTPRESS_BOT_ID_FR=... \
+     BOTPRESS_BOT_ID_DE=... \
+     BOTPRESS_BOT_ID_ES=... \
+     BOTPRESS_BOT_ID_LEROY_MERLIN_ES=... \
+     DASHBOARD_SESSION_TTL_HOURS=8
+   ```
+4. Create/rotate users in `public.dashboard_users` using bcrypt hashes (examples in SQL file).
 
 ### Installation
 
@@ -56,16 +84,9 @@ The dashboard supports environment variables for pre-configuring Botpress settin
 
 ### Configuration
 
-1. Click on "Configure Settings" on the welcome screen
-2. Enter your Botpress credentials:
-   - **API Token**: Your Botpress API token
-   - **Workspace ID**: Your Botpress workspace ID
-   - **Bot IDs**: Configure the Bot IDs for each language version:
-     - FR version Bot ID
-     - DE version Bot ID
-     - ES version Bot ID
-
-3. Save your settings
+1. Open login page and authenticate with a user from `dashboard_users`
+2. After login, Botpress token/workspace are fetched from `dashboard-get-botpress-token`
+3. In Settings, token/workspace are read-only in secure mode
 
 ### Usage
 

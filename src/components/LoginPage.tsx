@@ -31,28 +31,26 @@ export default function LoginPage() {
     },
   });
 
-  function onSubmit(data: LoginFormValues) {
+  async function onSubmit(data: LoginFormValues) {
     setIsLoading(true);
 
-    setTimeout(() => {
-      const success = login(data.username, data.password);
+    const result = await login(data.username, data.password);
 
-      if (success) {
-        toast.success('Login successful!');
-      } else {
-        toast.error('Invalid username or password.');
-        form.setError('username', {
-          type: 'manual',
-          message: ' ',
-        });
-        form.setError('password', {
-          type: 'manual',
-          message: 'Invalid username or password combination',
-        });
-      }
-      
-      setIsLoading(false);
-    }, 1000); // Add a small delay for better UX
+    if (result.success) {
+      toast.success('Login successful!');
+    } else {
+      toast.error(result.error || 'Invalid username or password.');
+      form.setError('username', {
+        type: 'manual',
+        message: ' ',
+      });
+      form.setError('password', {
+        type: 'manual',
+        message: 'Invalid username or password combination',
+      });
+    }
+
+    setIsLoading(false);
   }
 
   return (

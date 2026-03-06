@@ -9,6 +9,7 @@ import Analysis from './components/Analysis';
 import Analytics from './components/Analytics';
 import Learnings from './components/Learnings';
 import IntroTable from './components/IntroTable';
+import CodeTextTable from './components/CodeTextTable';
 import Settings from './components/Settings';
 import LoginPage from './components/LoginPage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +19,7 @@ import { Toaster } from 'sonner';
 import './App.css';
 
 function AppContent() {
-  const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'analytics'>('sentiment');
+  const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'codeText' | 'analytics'>('sentiment');
   const { isConfigured } = useSettings();
   const { isAuthenticated, userRole, logout } = useAuth();
   
@@ -50,16 +51,17 @@ function AppContent() {
         {activeView === 'analytics' && isConfigured && <Analytics />}
         {activeView === 'learnings' && isConfigured && <Learnings />}
         {activeView === 'intro' && isConfigured && <IntroTable />}
+        {activeView === 'codeText' && isConfigured && <CodeTextTable />}
         {activeView === 'sentiment' && isConfigured && <SentimentAnalysis />}
         {activeView === 'feedbacks' && isConfigured && <Feedbacks />}
-        {(activeView === 'sentiment' || activeView === 'feedbacks' || activeView === 'analysis' || activeView === 'learnings' || activeView === 'intro' || activeView === 'analytics') && !isConfigured && (
+        {(activeView === 'sentiment' || activeView === 'feedbacks' || activeView === 'analysis' || activeView === 'learnings' || activeView === 'intro' || activeView === 'codeText' || activeView === 'analytics') && !isConfigured && (
           <div className="flex justify-center w-full px-6 py-12">
             <div className="w-full max-w-4xl">
               <Card>
                 <CardHeader className="text-center">
                   <CardTitle className="text-2xl">Configuration Required</CardTitle>
                   <CardDescription>
-                    Please configure your Botpress workspace and bot settings before accessing sentiment analysis, feedbacks, learnings, intro entries, or analytics
+                    Please configure your Botpress workspace and bot settings before accessing sentiment analysis, feedbacks, learnings, intro entries, code/text entries, or analytics
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="text-center">
@@ -104,7 +106,6 @@ function AppContent() {
         )}
         {activeView === 'conversations' && isConfigured && <ConversationsList />}
       </Layout>
-      <Toaster position="top-center" />
     </>
   );
 }
@@ -114,6 +115,7 @@ function App() {
     <AuthProvider>
       <SettingsProvider>
         <AppContent />
+        <Toaster position="top-center" />
       </SettingsProvider>
     </AuthProvider>
   );

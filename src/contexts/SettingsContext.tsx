@@ -1,6 +1,8 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AppSettings, BotConfig } from '../types';
+import { useAuth } from './AuthContext';
+import { getBotpressConfig } from '@/lib/edgeFunctions';
 
 interface SettingsContextType {
   settings: AppSettings;
@@ -8,54 +10,134 @@ interface SettingsContextType {
   isConfigured: boolean;
 }
 
+const STORAGE_KEY = 'botpress-dashboard-settings';
+const secureConfigEnabled = import.meta.env.VITE_SECURE_CONFIG_ENABLED === 'true';
+
 const defaultBots: BotConfig[] = [
   { id: 'fr', name: 'FR version', botId: import.meta.env.VITE_BOTPRESS_BOT_ID_FR || '' },
   { id: 'de', name: 'DE version', botId: import.meta.env.VITE_BOTPRESS_BOT_ID_DE || '' },
   { id: 'es', name: 'ES version', botId: import.meta.env.VITE_BOTPRESS_BOT_ID_ES || '' },
-  { id: 'leroy-merlin-es', name: 'Leroy Merlin - ES', botId: import.meta.env.VITE_BOTPRESS_BOT_ID_LEROY_MERLIN_ES },
+  { id: 'leroy-merlin-es', name: 'Leroy Merlin - ES', botId: import.meta.env.VITE_BOTPRESS_BOT_ID_LEROY_MERLIN_ES || '' },
 ];
 
 const defaultSettings: AppSettings = {
-  token: import.meta.env.VITE_BOTPRESS_TOKEN || '',
-  workspaceId: import.meta.env.VITE_BOTPRESS_WORKSPACE_ID || '',
+  token: secureConfigEnabled ? '' : (import.meta.env.VITE_BOTPRESS_TOKEN || ''),
+  workspaceId: secureConfigEnabled ? '' : (import.meta.env.VITE_BOTPRESS_WORKSPACE_ID || ''),
   bots: defaultBots,
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
+function normalizeBots(savedBots: BotConfig[] | undefined): BotConfig[] {
+  return defaultBots.map((defaultBot) => {
+    const savedBot = savedBots?.find((bot) => bot.id === defaultBot.id);
+    const merged = savedBot ? { ...defaultBot, ...savedBot } : defaultBot;
+    return { ...merged, botId: String(merged.botId ?? '').trim() };
+  });
+}
+
+function persistNonSensitiveSettings(nextSettings: AppSettings) {
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      workspaceId: secureConfigEnabled ? '' : nextSettings.workspaceId,
+      bots: nextSettings.bots,
+    })
+  );
+}
+
 export function SettingsProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated, sessionToken } = useAuth();
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
-  // Load settings from localStorage on component mount
+
   useEffect(() => {
-    const savedSettings = localStorage.getItem('botpress-dashboard-settings');
-    if (savedSettings) {
-      try {
-        const parsed = JSON.parse(savedSettings);
-        // Ensure we always have the default bot structure
-        const mergedSettings = {
-          ...defaultSettings,
-          ...parsed,
-          bots: defaultBots.map(defaultBot => {
-            const savedBot = parsed.bots?.find((bot: BotConfig) => bot.id === defaultBot.id);
-            return savedBot ? { ...defaultBot, ...savedBot } : defaultBot;
-          })
-        };
-        setSettings(mergedSettings);
-      } catch (error) {
-        console.error('Failed to parse saved settings:', error);
-      }
+    const savedSettings = localStorage.getItem(STORAGE_KEY);
+    if (!savedSettings) return;
+
+    try {
+      const parsed = JSON.parse(savedSettings);
+      const mergedSettings: AppSettings = {
+        ...defaultSettings,
+        token: defaultSettings.token,
+        workspaceId: secureConfigEnabled
+          ? ''
+          : String(parsed.workspaceId ?? defaultSettings.workspaceId ?? '').trim(),
+        bots: secureConfigEnabled ? normalizeBots(undefined) : normalizeBots(parsed.bots),
+      };
+      setSettings(mergedSettings);
+      persistNonSensitiveSettings(mergedSettings);
+    } catch (error) {
+      console.error('Failed to parse saved settings:', error);
     }
   }, []);
 
+  useEffect(() => {
+    if (!secureConfigEnabled) return;
+
+    if (!isAuthenticated || !sessionToken) {
+      setSettings((prev) => ({ ...prev, token: '', workspaceId: '' }));
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSecureConfig = async () => {
+      try {
+        const config = await getBotpressConfig(sessionToken);
+        if (cancelled) return;
+
+        setSettings((prev) => {
+          const secureBots = config.bots || {};
+          const mergedBots = defaultBots.map((bot) => ({
+            ...bot,
+            botId: String(secureBots[bot.id] ?? '').trim(),
+          }));
+
+          const nextSettings: AppSettings = {
+            ...prev,
+            token: String(config.token ?? '').trim(),
+            workspaceId: String(config.workspaceId ?? '').trim(),
+            bots: mergedBots,
+          };
+
+          persistNonSensitiveSettings(nextSettings);
+          return nextSettings;
+        });
+      } catch (error) {
+        console.error('Failed to load secure Botpress config:', error);
+        if (!cancelled) {
+          setSettings((prev) => ({ ...prev, token: '', workspaceId: '' }));
+        }
+      }
+    };
+
+    loadSecureConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, sessionToken]);
+
   const updateSettings = (newSettings: AppSettings) => {
-    setSettings(newSettings);
-    localStorage.setItem('botpress-dashboard-settings', JSON.stringify(newSettings));
+    const sanitizedSettings: AppSettings = {
+      ...newSettings,
+      token: secureConfigEnabled ? settings.token : String(newSettings.token ?? '').trim(),
+      workspaceId: secureConfigEnabled ? settings.workspaceId : String(newSettings.workspaceId ?? '').trim(),
+      bots: secureConfigEnabled
+        ? settings.bots
+        : newSettings.bots.map((bot) => ({
+            ...bot,
+            botId: String(bot.botId ?? '').trim(),
+          })),
+    };
+
+    setSettings(sanitizedSettings);
+    persistNonSensitiveSettings(sanitizedSettings);
   };
 
-  const isConfigured = Boolean(
-    settings.token && 
-    settings.workspaceId && 
-    settings.bots.some(bot => bot.botId)
+  const isConfigured = useMemo(
+    () => Boolean(settings.token && settings.workspaceId && settings.bots.some((bot) => bot.botId)),
+    [settings]
   );
 
   return (

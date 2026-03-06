@@ -400,7 +400,7 @@ export default function Analytics() {
                     <SelectValue placeholder="Select a bot" />
                   </SelectTrigger>
                   <SelectContent>
-                    {settings.bots.map((bot: any) => (
+                    {settings.bots.filter((bot: any) => bot.botId).map((bot: any) => (
                       <SelectItem key={bot.id} value={bot.botId}>
                         {bot.name}
                       </SelectItem>

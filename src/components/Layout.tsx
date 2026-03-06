@@ -6,11 +6,16 @@ import { Separator } from '@/components/ui/separator';
 
 interface LayoutProps {
   children: ReactNode;
-  activeView: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'analytics';
-  onViewChange: (view: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'analytics') => void;
+  activeView: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'codeText' | 'analytics';
+  onViewChange: (view: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'codeText' | 'analytics') => void;
   userRole: UserRole;
   onLogout: () => void;
 }
+
+const viewLabels = {
+  intro: 'Intro',
+  codeText: 'Code Text'
+} as const;
 
 export default function Layout({ 
   children, 
@@ -31,7 +36,7 @@ export default function Layout({
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <h1 className="text-lg font-semibold capitalize">{activeView === 'intro' ? 'Intro' : activeView}</h1>
+          <h1 className="text-lg font-semibold capitalize">{viewLabels[activeView as keyof typeof viewLabels] || activeView}</h1>
         </header>
         <main className="flex-1 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/50">
           <div className="container mx-auto p-6 max-w-7xl animate-in fade-in duration-500">

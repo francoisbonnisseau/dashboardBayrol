@@ -1,11 +1,11 @@
-import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, Brain, BookOpen, FileText, MessageSquare, LineChart } from 'lucide-react';
+import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, Brain, BookOpen, FileText, FileCode2, MessageSquare, LineChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { UserRole } from '@/contexts/AuthContext';
 
 interface NavigationProps {
-  activeView: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'analytics';
-  onViewChange: (view: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'analytics') => void;
+  activeView: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'codeText' | 'analytics';
+  onViewChange: (view: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'codeText' | 'analytics') => void;
   userRole: UserRole;
   onLogout: () => void;
 }
@@ -69,6 +69,16 @@ export default function Navigation({ activeView, onViewChange, userRole, onLogou
               >
                 <FileText className="h-4 w-4" />
                 Intro
+              </Button>
+
+              <Button
+                variant={activeView === 'codeText' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => onViewChange('codeText')}
+                className="flex items-center gap-2"
+              >
+                <FileCode2 className="h-4 w-4" />
+                Code Text
               </Button>
               
               <Button
