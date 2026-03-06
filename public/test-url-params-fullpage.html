@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test URL Parameters - Full Page</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        #chat-wrapper {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        /* Loading state */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            color: white;
+        }
+
+        .loading h2 {
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+        .loading .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .params-info {
+            margin-top: 20px;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+        }
+
+        .params-info .param {
+            margin: 5px 0;
+        }
+
+        .params-info .key {
+            color: #ffd700;
+            font-weight: bold;
+        }
+
+        .params-info .value {
+            color: #98fb98;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Full page chat container -->
+    <div id="chat-wrapper">
+        <div class="loading">
+            <div class="spinner"></div>
+            <h2>Chargement du chat...</h2>
+        </div>
+    </div>
+
+    <!-- Load the webchat -->
+    <script src="https://francoisbonnisseau.github.io/dashboardBayrol/dist/inject.js"></script>
+    <script src="https://francoisbonnisseau.github.io/dashboardBayrol/dist/config_FR.js" defer></script>
+
+    <script>
+        // Parse les paramètres URL
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const result = {};
+            for (const [key, value] of params.entries()) {
+                result[key] = value;
+            }
+            return result;
+        }
+
+        // Envoie les paramètres URL comme événement
+        function sendUrlParamsEvent() {
+            const params = getUrlParams();
+            const paramCount = Object.keys(params).length;
+
+            // Ne rien envoyer s'il n'y a pas de paramètres
+            if (paramCount === 0) {
+                console.log('No URL params to send');
+                return;
+            }
+
+            if (window.webchat && window.webchat.sendEvent) {
+                console.log('Sending URL params as event:', params);
+                window.webchat.sendEvent({
+                    type: 'productSelected',
+                    payload: params
+                });
+                console.log(`✅ ${paramCount} paramètre(s) envoyé(s) au bot`);
+            }
+        }
+
+        // Script to move the chat and force it open
+        document.addEventListener('DOMContentLoaded', () => {
+            const wrapper = document.getElementById('chat-wrapper');
+            let moved = false;
+
+            const observer = new MutationObserver((mutations) => {
+                const container = document.getElementById('custom-botpress-webchat-container');
+                if (container && !moved) {
+                    // Move the container inside our wrapper
+                    wrapper.innerHTML = ''; // Remove loading content
+                    wrapper.appendChild(container);
+                    moved = true;
+
+                    // Apply styles to override fixed positioning and make it full page
+                    const style = document.createElement('style');
+                    style.innerHTML = `
+                        #custom-botpress-webchat-container {
+                            width: 100% !important;
+                            height: 100% !important;
+                            position: static !important;
+                        }
+                        
+                        /* Target the inner React Container component */
+                        #custom-botpress-webchat-container > div {
+                            width: 100% !important;
+                            height: 100% !important;
+                            position: static !important;
+                            box-shadow: none !important;
+                            border-radius: 0 !important;
+                            display: flex !important;
+                            top: 0 !important;
+                            left: 0 !important;
+                            bottom: 0 !important;
+                            right: 0 !important;
+                        }
+
+                        /* Hide the floating button */
+                        #custom-botpress-webchat-container button[style*="position: fixed"] {
+                            display: none !important;
+                        }
+                    `;
+                    document.head.appendChild(style);
+
+                    // Click the FAB to open the chat
+                    setTimeout(() => {
+                        const fab = container.querySelector('button');
+                        if (fab) {
+                            fab.click();
+                        }
+
+                        // Send URL params after chat is open
+                        setTimeout(() => {
+                            sendUrlParamsEvent();
+                        }, 500);
+                    }, 500);
+                }
+            });
+
+            observer.observe(document.body, { childList: true, subtree: true });
+        });
+    </script>
+</body>
+
+
+</html>
+
