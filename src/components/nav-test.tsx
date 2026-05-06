@@ -32,18 +32,29 @@ export function NavTest({ items, activeView, onViewChange }: NavTestProps) {
       </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton
-                tooltip={item.title}
-                isActive={activeView === item.view}
-                onClick={() => onViewChange(item.view)}
-              >
-                <item.icon />
-                <span>{item.title}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {items.map((item) => {
+            const isDisabled = item.view === "testModels"
+
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  tooltip={isDisabled ? `${item.title} (Preview only)` : item.title}
+                  isActive={!isDisabled && activeView === item.view}
+                  disabled={isDisabled}
+                  aria-disabled={isDisabled}
+                  onClick={() => {
+                    if (!isDisabled) {
+                      onViewChange(item.view)
+                    }
+                  }}
+                  className={isDisabled ? "text-muted-foreground opacity-50" : undefined}
+                >
+                  <item.icon />
+                  <span>{item.title}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          })}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
