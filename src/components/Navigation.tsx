@@ -1,11 +1,12 @@
-import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, Brain, BookOpen, FileText, FileCode2, MessageSquare, LineChart } from 'lucide-react';
+import { MessageCircle, Settings as SettingsIcon, BarChart3, LogOut, Brain, BookOpen, FileText, FileCode2, MessageSquare, LineChart, FlaskConical, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { UserRole } from '@/contexts/AuthContext';
+import type { DashboardView } from '@/types/views';
 
 interface NavigationProps {
-  activeView: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'codeText' | 'analytics';
-  onViewChange: (view: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'codeText' | 'analytics') => void;
+  activeView: DashboardView;
+  onViewChange: (view: DashboardView) => void;
   userRole: UserRole;
   onLogout: () => void;
 }
@@ -102,7 +103,27 @@ export default function Navigation({ activeView, onViewChange, userRole, onLogou
                   Analysis
                 </Button>
               )}
-              
+
+              <Button
+                variant={activeView === 'testPrompts' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => onViewChange('testPrompts')}
+                className="flex items-center gap-2"
+              >
+                <FlaskConical className="h-4 w-4" />
+                Prompts
+              </Button>
+
+              <Button
+                variant={activeView === 'testModels' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => onViewChange('testModels')}
+                className="flex items-center gap-2"
+              >
+                <Sparkles className="h-4 w-4" />
+                Models
+              </Button>
+               
               <Button
                 variant={activeView === 'settings' ? 'default' : 'ghost'}
                 size="sm"

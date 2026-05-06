@@ -112,6 +112,12 @@
   background-color: #ffffff !important;
 }
 
+/* Fix DialogContent transparency issues */
+[data-slot="dialog-content"] {
+  background-color: var(--popover) !important;
+  color: var(--popover-foreground);
+}
+
 /* Ensure dialog and sheet backgrounds are solid */
 [data-radix-dialog-overlay], 
 [data-slot="sheet-overlay"] {

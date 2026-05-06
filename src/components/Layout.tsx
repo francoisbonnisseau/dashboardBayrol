@@ -3,18 +3,21 @@ import { AppSidebar } from './Sidebar';
 import type { UserRole } from '@/contexts/AuthContext';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
+import type { DashboardView } from '@/types/views';
 
 interface LayoutProps {
   children: ReactNode;
-  activeView: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'codeText' | 'analytics';
-  onViewChange: (view: 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'codeText' | 'analytics') => void;
+  activeView: DashboardView;
+  onViewChange: (view: DashboardView) => void;
   userRole: UserRole;
   onLogout: () => void;
 }
 
 const viewLabels = {
   intro: 'Intro',
-  codeText: 'Code Text'
+  codeText: 'Code Text',
+  testPrompts: 'Prompts',
+  testModels: 'Model Testing',
 } as const;
 
 export default function Layout({ 

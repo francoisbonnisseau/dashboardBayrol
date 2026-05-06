@@ -8,14 +8,18 @@ import {
   BookOpen, 
   FileText, 
   FileCode2,
+  FlaskConical,
+  Sparkles,
   MessageSquare, 
   LineChart
 } from 'lucide-react';
 import type { UserRole } from '@/contexts/AuthContext';
 import bayrolIcon from '@/assets/iconBayrol.png';
+import type { DashboardView } from '@/types/views';
 
 import { NavMain } from "@/components/nav-main"
 import { NavKnowledge } from "@/components/nav-knowledge"
+import { NavTest } from "@/components/nav-test"
 import { NavSecondary } from "@/components/nav-secondary"
 import {
   Sidebar,
@@ -26,7 +30,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-type ViewType = 'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'codeText' | 'analytics';
+type ViewType = DashboardView;
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   activeView: ViewType;
@@ -92,6 +96,19 @@ export function AppSidebar({
     },
   ]
 
+  const navTestItems = [
+    {
+      title: "Prompts",
+      icon: FlaskConical,
+      view: "testPrompts",
+    },
+    {
+      title: "Models",
+      icon: Sparkles,
+      view: "testModels",
+    },
+  ]
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -120,6 +137,11 @@ export function AppSidebar({
         />
         <NavKnowledge 
           items={navKnowledgeItems} 
+          activeView={activeView}
+          onViewChange={(view) => onViewChange(view as ViewType)}
+        />
+        <NavTest
+          items={navTestItems}
           activeView={activeView}
           onViewChange={(view) => onViewChange(view as ViewType)}
         />

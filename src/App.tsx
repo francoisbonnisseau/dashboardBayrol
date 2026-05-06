@@ -10,16 +10,19 @@ import Analytics from './components/Analytics';
 import Learnings from './components/Learnings';
 import IntroTable from './components/IntroTable';
 import CodeTextTable from './components/CodeTextTable';
+import PromptManagement from './components/PromptManagement';
+import ModelTesting from './components/ModelTesting';
 import Settings from './components/Settings';
 import LoginPage from './components/LoginPage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { Toaster } from 'sonner';
+import type { DashboardView } from '@/types/views';
 import './App.css';
 
 function AppContent() {
-  const [activeView, setActiveView] = useState<'conversations' | 'sentiment' | 'feedbacks' | 'settings' | 'analysis' | 'learnings' | 'intro' | 'codeText' | 'analytics'>('sentiment');
+  const [activeView, setActiveView] = useState<DashboardView>('sentiment');
   const { isConfigured } = useSettings();
   const { isAuthenticated, userRole, logout } = useAuth();
   
@@ -52,16 +55,27 @@ function AppContent() {
         {activeView === 'learnings' && isConfigured && <Learnings />}
         {activeView === 'intro' && isConfigured && <IntroTable />}
         {activeView === 'codeText' && isConfigured && <CodeTextTable />}
+        {activeView === 'testPrompts' && isConfigured && <PromptManagement />}
+        {activeView === 'testModels' && isConfigured && <ModelTesting />}
         {activeView === 'sentiment' && isConfigured && <SentimentAnalysis />}
         {activeView === 'feedbacks' && isConfigured && <Feedbacks />}
-        {(activeView === 'sentiment' || activeView === 'feedbacks' || activeView === 'analysis' || activeView === 'learnings' || activeView === 'intro' || activeView === 'codeText' || activeView === 'analytics') && !isConfigured && (
+        {(activeView === 'sentiment' ||
+          activeView === 'feedbacks' ||
+          activeView === 'analysis' ||
+          activeView === 'learnings' ||
+          activeView === 'intro' ||
+          activeView === 'codeText' ||
+          activeView === 'analytics' ||
+          activeView === 'testPrompts' ||
+          activeView === 'testModels') &&
+          !isConfigured && (
           <div className="flex justify-center w-full px-6 py-12">
             <div className="w-full max-w-4xl">
               <Card>
                 <CardHeader className="text-center">
                   <CardTitle className="text-2xl">Configuration Required</CardTitle>
                   <CardDescription>
-                    Please configure your Botpress workspace and bot settings before accessing sentiment analysis, feedbacks, learnings, intro entries, code/text entries, or analytics
+                    Please configure your Botpress workspace and bot settings before accessing sentiment analysis, feedbacks, learnings, intro entries, code/text entries, prompt management, or analytics
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="text-center">
