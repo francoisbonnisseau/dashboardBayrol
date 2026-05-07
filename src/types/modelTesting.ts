@@ -32,6 +32,7 @@ export interface ModelResponse {
   modelId: string;
   text: string;
   error?: string;
+  pending?: boolean;
   latencyMs: number;
   usage?: {
     inputTokens?: number;

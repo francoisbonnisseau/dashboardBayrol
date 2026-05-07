@@ -33,7 +33,7 @@ export function NavTest({ items, activeView, onViewChange }: NavTestProps) {
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => {
-            const isDisabled = item.view === "testModels"
+            const isDisabled = false //item.view === "testModels"
 
             return (
               <SidebarMenuItem key={item.title}>

@@ -11,6 +11,7 @@ interface GenerateTextParams {
   messages: LocalChatMessage[];
   temperature: number;
   maxTokens: number;
+  reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'dynamic';
   timeoutMs?: number;
 }
 
@@ -99,6 +100,7 @@ export async function generateTextWithCognitiveApi({
   messages,
   temperature,
   maxTokens,
+  reasoningEffort,
   timeoutMs = 45000,
 }: GenerateTextParams): Promise<GenerateTextResult> {
   const controller = new AbortController();
@@ -109,6 +111,7 @@ export async function generateTextWithCognitiveApi({
     model,
     temperature,
     maxTokens,
+    reasoningEffort,
     messages: [
       {
         role: 'system',
