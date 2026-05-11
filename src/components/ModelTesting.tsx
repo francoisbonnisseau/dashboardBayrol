@@ -3,7 +3,20 @@ import { AlertCircle, Bot, ChevronLeft, ChevronRight, Loader2, Plus, Save, Send,
 import { toast } from 'sonner';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useBotpressClient } from '@/hooks/useBotpressClient';
-import { fetchCognitiveModels, generateTextWithCognitiveApi } from '@/lib/cognitiveApi';
+import { fetchCognitiveModels } from '@/lib/cognitiveApi';
+import { filterDisplayableCognitiveModels } from '@/lib/modelTestingModels';
+import {
+  buildSavedStateWithClearedConversation,
+  buildSavedStateWithConversation,
+  STATIC_THINKING_OPTIONS,
+  THINKING_OPTIONS,
+  type ModeKey,
+  type ModeSnapshot,
+  type SavedBotState,
+  type StaticThinkingOption,
+  type ThinkingOption,
+} from '@/lib/modelTestingConfig';
+import { runCompareModelTestingTurn, runSingleModelTestingTurn } from '@/lib/modelTestingAgent';
 import { cn } from '@/lib/utils';
 import {
   getPromptSelectionKey,
@@ -16,6 +29,7 @@ import type {
   CognitiveModel,
   LocalChatMessage,
   ModelResponse,
+  ModelResponseStep,
   PerModelHistory,
 } from '@/types/modelTesting';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -34,31 +48,6 @@ const ALLOWED_PROMPT_BOTS = new Set(['fr', 'de', 'es']);
 const DEFAULT_TEMPERATURE = 0.3;
 const DEFAULT_MAX_TOKENS = 1200;
 const MODEL_TESTING_STORAGE_KEY = 'model-testing-config-v4';
-const THINKING_OPTIONS = ['none', 'low', 'medium', 'high', 'dynamic'] as const;
-const STATIC_THINKING_OPTIONS = ['low', 'medium', 'high'] as const;
-
-type ThinkingOption = (typeof THINKING_OPTIONS)[number];
-type StaticThinkingOption = (typeof STATIC_THINKING_OPTIONS)[number];
-type ModeKey = 'single' | 'compare';
-
-type ModeSnapshot = {
-  thinking: ThinkingOption;
-  staticThinking: StaticThinkingOption;
-  temperature: number;
-  selectedProviderA: string;
-  selectedProviderB: string;
-  selectedModelA: string;
-  selectedModelB: string;
-  selectedPromptKey: string;
-  turns: ChatTurn[];
-  singleHistory: LocalChatMessage[];
-  compareHistory: PerModelHistory;
-};
-
-type SavedBotState = {
-  currentMode: ModeKey;
-  modes: Partial<Record<ModeKey, ModeSnapshot>>;
-};
 
 function getProviderFromModelId(modelId: string) {
   return modelId.split(':')[0] || 'other';
@@ -108,7 +97,19 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-function readSavedConfigs() {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function isThinkingOption(value: unknown): value is ThinkingOption {
+  return typeof value === 'string' && THINKING_OPTIONS.includes(value as ThinkingOption);
+}
+
+function isStaticThinkingOption(value: unknown): value is StaticThinkingOption {
+  return typeof value === 'string' && STATIC_THINKING_OPTIONS.includes(value as StaticThinkingOption);
+}
+
+function readSavedConfigs(): Record<string, unknown> {
   if (typeof window === 'undefined') {
     return {};
   }
@@ -120,7 +121,7 @@ function readSavedConfigs() {
     }
 
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    return isRecord(parsed) ? parsed : {};
   } catch {
     return {};
   }
@@ -132,24 +133,26 @@ function readSavedBotState(botId: string): SavedBotState | null {
     return null;
   }
 
+  const configRecord = config as Record<string, unknown>;
+
   // Backward compatibility with the previous flat shape.
-  if ('selectedModelA' in config) {
-    const legacyMode: ModeKey = config.comparisonEnabled ? 'compare' : 'single';
+  if ('selectedModelA' in configRecord) {
+    const legacyMode: ModeKey = configRecord.comparisonEnabled ? 'compare' : 'single';
     return {
       currentMode: legacyMode,
       modes: {
         [legacyMode]: {
-          thinking: THINKING_OPTIONS.includes(config.thinking) ? config.thinking : 'medium',
-          staticThinking: STATIC_THINKING_OPTIONS.includes(config.staticThinking) ? config.staticThinking : 'medium',
+          thinking: isThinkingOption(configRecord.thinking) ? configRecord.thinking : 'medium',
+          staticThinking: isStaticThinkingOption(configRecord.staticThinking) ? configRecord.staticThinking : 'medium',
           temperature:
-            typeof config.temperature === 'number' && Number.isFinite(config.temperature)
-              ? config.temperature
+            typeof configRecord.temperature === 'number' && Number.isFinite(configRecord.temperature)
+              ? configRecord.temperature
               : DEFAULT_TEMPERATURE,
-          selectedProviderA: typeof config.selectedProviderA === 'string' ? config.selectedProviderA : '',
-          selectedProviderB: typeof config.selectedProviderB === 'string' ? config.selectedProviderB : '',
-          selectedModelA: typeof config.selectedModelA === 'string' ? config.selectedModelA : '',
-          selectedModelB: typeof config.selectedModelB === 'string' ? config.selectedModelB : '',
-          selectedPromptKey: typeof config.selectedPromptKey === 'string' ? config.selectedPromptKey : '',
+          selectedProviderA: typeof configRecord.selectedProviderA === 'string' ? configRecord.selectedProviderA : '',
+          selectedProviderB: typeof configRecord.selectedProviderB === 'string' ? configRecord.selectedProviderB : '',
+          selectedModelA: typeof configRecord.selectedModelA === 'string' ? configRecord.selectedModelA : '',
+          selectedModelB: typeof configRecord.selectedModelB === 'string' ? configRecord.selectedModelB : '',
+          selectedPromptKey: typeof configRecord.selectedPromptKey === 'string' ? configRecord.selectedPromptKey : '',
           turns: [],
           singleHistory: [],
           compareHistory: { modelA: [], modelB: [] },
@@ -158,35 +161,36 @@ function readSavedBotState(botId: string): SavedBotState | null {
     };
   }
 
-  const modes = config.modes && typeof config.modes === 'object' ? config.modes : {};
-  const normalizeModeSnapshot = (snapshot: any): ModeSnapshot => ({
-    thinking: THINKING_OPTIONS.includes(snapshot?.thinking) ? snapshot.thinking : 'medium',
-    staticThinking: STATIC_THINKING_OPTIONS.includes(snapshot?.staticThinking) ? snapshot.staticThinking : 'medium',
-    temperature:
-      typeof snapshot?.temperature === 'number' && Number.isFinite(snapshot.temperature)
-        ? snapshot.temperature
-        : DEFAULT_TEMPERATURE,
-    selectedProviderA: typeof snapshot?.selectedProviderA === 'string' ? snapshot.selectedProviderA : '',
-    selectedProviderB: typeof snapshot?.selectedProviderB === 'string' ? snapshot.selectedProviderB : '',
-    selectedModelA: typeof snapshot?.selectedModelA === 'string' ? snapshot.selectedModelA : '',
-    selectedModelB: typeof snapshot?.selectedModelB === 'string' ? snapshot.selectedModelB : '',
-    selectedPromptKey: typeof snapshot?.selectedPromptKey === 'string' ? snapshot.selectedPromptKey : '',
-    turns: Array.isArray(snapshot?.turns) ? snapshot.turns : [],
-    singleHistory: Array.isArray(snapshot?.singleHistory) ? snapshot.singleHistory : [],
-    compareHistory:
-      snapshot?.compareHistory && typeof snapshot.compareHistory === 'object'
-        ? {
-            modelA: Array.isArray(snapshot.compareHistory.modelA) ? snapshot.compareHistory.modelA : [],
-            modelB: Array.isArray(snapshot.compareHistory.modelB) ? snapshot.compareHistory.modelB : [],
-          }
-        : { modelA: [], modelB: [] },
-  });
+  const modes = isRecord(configRecord.modes) ? configRecord.modes : {};
+  const normalizeModeSnapshot = (snapshot: Record<string, unknown>): ModeSnapshot => {
+    const compareHistory = isRecord(snapshot.compareHistory) ? snapshot.compareHistory : {};
+
+    return {
+      thinking: isThinkingOption(snapshot.thinking) ? snapshot.thinking : 'medium',
+      staticThinking: isStaticThinkingOption(snapshot.staticThinking) ? snapshot.staticThinking : 'medium',
+      temperature:
+        typeof snapshot.temperature === 'number' && Number.isFinite(snapshot.temperature)
+          ? snapshot.temperature
+          : DEFAULT_TEMPERATURE,
+      selectedProviderA: typeof snapshot.selectedProviderA === 'string' ? snapshot.selectedProviderA : '',
+      selectedProviderB: typeof snapshot.selectedProviderB === 'string' ? snapshot.selectedProviderB : '',
+      selectedModelA: typeof snapshot.selectedModelA === 'string' ? snapshot.selectedModelA : '',
+      selectedModelB: typeof snapshot.selectedModelB === 'string' ? snapshot.selectedModelB : '',
+      selectedPromptKey: typeof snapshot.selectedPromptKey === 'string' ? snapshot.selectedPromptKey : '',
+      turns: Array.isArray(snapshot.turns) ? snapshot.turns : [],
+      singleHistory: Array.isArray(snapshot.singleHistory) ? snapshot.singleHistory : [],
+      compareHistory: {
+        modelA: Array.isArray(compareHistory.modelA) ? compareHistory.modelA : [],
+        modelB: Array.isArray(compareHistory.modelB) ? compareHistory.modelB : [],
+      },
+    };
+  };
 
   return {
-    currentMode: config.currentMode === 'single' ? 'single' : 'compare',
+    currentMode: configRecord.currentMode === 'single' ? 'single' : 'compare',
     modes: {
-      single: modes.single ? normalizeModeSnapshot(modes.single) : undefined,
-      compare: modes.compare ? normalizeModeSnapshot(modes.compare) : undefined,
+      single: isRecord(modes.single) ? normalizeModeSnapshot(modes.single) : undefined,
+      compare: isRecord(modes.compare) ? normalizeModeSnapshot(modes.compare) : undefined,
     },
   };
 }
@@ -268,32 +272,83 @@ function costLabel(usage?: ModelResponse['usage']) {
     return null;
   }
 
-  return `${total.toFixed(3).replace('.', ',')} $`;
+  return `${total.toFixed(5).replace('.', ',')} $`;
 }
 
-function buildModelResponse(params: {
-  modelId: string;
-  result?: Awaited<ReturnType<typeof generateTextWithCognitiveApi>>;
-  error?: string;
-}): ModelResponse {
-  const { modelId, result, error } = params;
+function extractAgentDisplayMessage(rawMessage: string) {
+  try {
+    const parsed = JSON.parse(rawMessage);
+    if (parsed?.action === 'reply_to_user' && typeof parsed.response_text === 'string') {
+      return parsed.response_text;
+    }
 
-  if (error) {
-    return {
-      modelId,
-      text: '',
-      error,
-      latencyMs: result?.latencyMs ?? 0,
-      usage: result?.usage ?? null,
-    };
+    if (parsed?.action === 'send_message_and_call_tool' && typeof parsed.message_to_user === 'string') {
+      return parsed.message_to_user;
+    }
+
+    return null;
+  } catch {
+    return rawMessage;
+  }
+}
+
+function getRenderableResponseMessages(response: ModelResponse) {
+  const rawMessages = response.messages?.length ? response.messages : [response.text];
+
+  return rawMessages
+    .map((message) => extractAgentDisplayMessage(message))
+    .filter((message): message is string => Boolean(message?.trim()));
+}
+
+function responseHasProgress(response: ModelResponse | undefined) {
+  if (!response) {
+    return false;
   }
 
-  return {
-    modelId,
-    text: result?.text ?? '',
-    latencyMs: result?.latencyMs ?? 0,
-    usage: result?.usage ?? null,
-  };
+  return Boolean(
+    response.steps?.length ||
+      response.messages?.length ||
+      response.text ||
+      response.error ||
+      response.latencyMs ||
+      response.usage
+  );
+}
+
+function ToolCallStep({ step }: { step: ModelResponseStep }) {
+  return (
+    <details className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+        <div className="min-w-0">
+          <span className="text-sm font-medium text-slate-800">Tool call</span>
+          <span className="ml-2 font-mono text-xs text-slate-500">{step.toolName}</span>
+        </div>
+        <Badge
+          variant="outline"
+          className={cn(
+            'border-slate-200 bg-white text-slate-600',
+            step.status === 'pending' && 'border-blue-200 bg-blue-50 text-blue-700',
+            step.status === 'failed' && 'border-rose-200 bg-rose-50 text-rose-700'
+          )}
+        >
+          {step.status === 'pending' ? 'Running' : step.status === 'failed' ? 'Failed' : 'Done'}
+        </Badge>
+      </summary>
+      <div className="mt-3 space-y-3">
+        {step.error ? (
+          <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-3 text-sm leading-6 text-rose-700">
+            {step.error}
+          </div>
+        ) : null}
+        <div>
+          <div className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-slate-500">Inputs</div>
+          <pre className="overflow-x-auto rounded-md border border-slate-200 bg-white p-3 text-xs leading-6 text-slate-700">
+            {JSON.stringify(step.toolArgs || {}, null, 2)}
+          </pre>
+        </div>
+      </div>
+    </details>
+  );
 }
 
 function Toggle({
@@ -354,6 +409,8 @@ function ResponseCard({
   accentClassName: string;
 }) {
   const cost = costLabel(response.usage);
+  const messages = getRenderableResponseMessages(response);
+  const steps = response.steps ?? [];
 
   return (
     <div className="border border-slate-200 bg-white">
@@ -368,13 +425,47 @@ function ResponseCard({
       </div>
 
       <div className="px-4 pb-4">
-        {response.error ? (
-          <div className="border border-rose-200 bg-rose-50 px-4 py-4 text-sm leading-7 text-rose-700">
-            {response.error}
-          </div>
-        ) : response.pending ? (
-          <div className="min-h-[280px] py-2 text-[15px] leading-7 text-slate-500">
-            <div className="inline-flex items-center gap-2">
+        <div className="min-h-[280px] space-y-4 text-[15px] leading-7 text-slate-800">
+          {steps.length > 0 ? (
+            steps.map((step) =>
+              step.kind === 'tool_call' ? (
+                <ToolCallStep key={step.id} step={step} />
+              ) : (
+                <div
+                  key={step.id}
+                  className={cn(
+                    'whitespace-pre-wrap',
+                    step.status === 'failed'
+                      ? 'rounded-md border border-rose-200 bg-rose-50 px-3 py-3 text-rose-700'
+                      : 'text-slate-800'
+                  )}
+                >
+                  {step.text}
+                </div>
+              )
+            )
+          ) : messages.length > 0 ? (
+            messages.map((message, index) => (
+              <div
+                key={`${response.modelId}-${index}`}
+                className={cn(
+                  'whitespace-pre-wrap',
+                  index < messages.length - 1 ? 'border-l-2 border-slate-200 pl-3 text-slate-500' : 'text-slate-800'
+                )}
+              >
+                {message}
+              </div>
+            ))
+          ) : response.error ? (
+            <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-3 text-sm leading-7 text-rose-700">
+              {response.error}
+            </div>
+          ) : (
+            <p className="whitespace-pre-wrap">{response.text || '[Empty response]'}</p>
+          )}
+
+          {response.pending ? (
+            <div className="inline-flex items-center gap-2 text-[15px] leading-7 text-slate-500">
               <span>Thinking</span>
               <span className="inline-flex gap-1">
                 <span className="size-1.5 animate-pulse rounded-full bg-slate-400 [animation-delay:0ms]" />
@@ -382,12 +473,8 @@ function ResponseCard({
                 <span className="size-1.5 animate-pulse rounded-full bg-slate-400 [animation-delay:300ms]" />
               </span>
             </div>
-          </div>
-        ) : (
-          <div className="min-h-[280px] text-[15px] leading-7 text-slate-800">
-            <p className="whitespace-pre-wrap">{response.text || '[Empty response]'}</p>
-          </div>
-        )}
+          ) : null}
+        </div>
       </div>
 
       <div className="px-4 pb-4 text-sm text-slate-500">
@@ -438,6 +525,8 @@ export default function ModelTesting() {
   const [singleHistory, setSingleHistory] = useState<LocalChatMessage[]>([]);
   const [compareHistory, setCompareHistory] = useState<PerModelHistory>({ modelA: [], modelB: [] });
   const [running, setRunning] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const previousModelSelectionRef = useRef<{ modelA: string; modelB: string } | null>(null);
 
   const client = useBotpressClient(selectedBotId);
   const prompts = useMemo(() => partitionPromptRows(promptRows), [promptRows]);
@@ -571,20 +660,16 @@ export default function ModelTesting() {
     }
 
     const existingState = readSavedBotState(selectedBotId);
-    const baseSnapshot = existingState?.modes?.[mode] ?? buildModeSnapshot();
-
-    writeSavedBotState(selectedBotId, {
-      currentMode: mode === currentMode ? mode : existingState?.currentMode ?? currentMode,
-      modes: {
-        ...(existingState?.modes ?? {}),
-        [mode]: {
-          ...baseSnapshot,
-          turns: chatState.turns,
-          singleHistory: chatState.singleHistory,
-          compareHistory: chatState.compareHistory,
-        },
-      },
-    });
+    writeSavedBotState(
+      selectedBotId,
+      buildSavedStateWithConversation({
+        existingState,
+        currentMode,
+        mode,
+        currentSnapshot: buildModeSnapshot(),
+        chatState,
+      })
+    );
   }
 
   useEffect(() => {
@@ -606,7 +691,7 @@ export default function ModelTesting() {
       try {
         const nextModels = await fetchCognitiveModels(settings.token, selectedBotId);
         if (!cancelled) {
-          setModels(nextModels);
+          setModels(filterDisplayableCognitiveModels(nextModels));
         }
       } catch (error) {
         if (!cancelled) {
@@ -699,6 +784,10 @@ export default function ModelTesting() {
   }, [selectedBotId]);
 
   useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [turns]);
+
+  useEffect(() => {
     if (!models.length) {
       setSelectedModelA('');
       setSelectedModelB('');
@@ -788,13 +877,61 @@ export default function ModelTesting() {
       return;
     }
 
+    const currentModelSelection = {
+      modelA: selectedModelA,
+      modelB: comparisonEnabled ? selectedModelB : '',
+    };
+
     if (restoringConfigRef.current) {
       restoringConfigRef.current = false;
+      previousModelSelectionRef.current = currentModelSelection;
       return;
     }
 
     if (!configBootedRef.current) {
       configBootedRef.current = true;
+      previousModelSelectionRef.current = currentModelSelection;
+      return;
+    }
+
+    const previousModelSelection = previousModelSelectionRef.current;
+    previousModelSelectionRef.current = currentModelSelection;
+
+    if (
+      previousModelSelection &&
+      (previousModelSelection.modelA !== currentModelSelection.modelA ||
+        previousModelSelection.modelB !== currentModelSelection.modelB)
+    ) {
+      const clearedSnapshot: ModeSnapshot = {
+        thinking,
+        staticThinking,
+        temperature,
+        selectedProviderA,
+        selectedProviderB,
+        selectedModelA,
+        selectedModelB,
+        selectedPromptKey,
+        turns: [],
+        singleHistory: [],
+        compareHistory: { modelA: [], modelB: [] },
+      };
+
+      setTurns([]);
+      setSingleHistory([]);
+      setCompareHistory({ modelA: [], modelB: [] });
+      setUserMessage('');
+      if (selectedBotId) {
+        const existingState = readSavedBotState(selectedBotId);
+        writeSavedBotState(
+          selectedBotId,
+          buildSavedStateWithClearedConversation({
+            existingState,
+            currentMode,
+            currentSnapshot: clearedSnapshot,
+          })
+        );
+      }
+      setConfigSaved(true);
       return;
     }
 
@@ -809,6 +946,8 @@ export default function ModelTesting() {
     temperature,
     thinking,
     staticThinking,
+    selectedBotId,
+    currentMode,
   ]);
 
   async function saveConfig() {
@@ -851,19 +990,14 @@ export default function ModelTesting() {
     setUserMessage('');
     if (selectedBotId) {
       const existingState = readSavedBotState(selectedBotId);
-      const nextSnapshot: ModeSnapshot = {
-        ...buildModeSnapshot(),
-        turns: [],
-        singleHistory: [],
-        compareHistory: { modelA: [], modelB: [] },
-      };
-      writeSavedBotState(selectedBotId, {
-        currentMode,
-        modes: {
-          ...(existingState?.modes ?? {}),
-          [currentMode]: nextSnapshot,
-        },
-      });
+      writeSavedBotState(
+        selectedBotId,
+        buildSavedStateWithClearedConversation({
+          existingState,
+          currentMode,
+          currentSnapshot: buildModeSnapshot(),
+        })
+      );
     }
   }
 
@@ -889,160 +1023,100 @@ export default function ModelTesting() {
   }
 
   async function runSingleTurn(message: string) {
-    const turnId = crypto.randomUUID();
-    const historyWithMessage: LocalChatMessage[] = [...singleHistory, { role: 'user', content: message }];
-    const pendingTurn: ChatTurn = {
-      id: turnId,
-      createdAt: new Date().toISOString(),
-      userText: message,
-      modelA: {
-        modelId: selectedModelA,
-        text: '',
-        pending: true,
-        latencyMs: 0,
-        usage: null,
-      },
-    };
-    const pendingTurns = [...turns, pendingTurn];
-
-    setTurns(pendingTurns);
-    persistModeConversation('single', {
-      turns: pendingTurns,
-      singleHistory: historyWithMessage,
-      compareHistory,
-    });
-
-    const result = await generateTextWithCognitiveApi({
+    const result = await runSingleModelTestingTurn({
       token: settings.token,
       botId: selectedBotId,
-      model: selectedModelA,
-      systemPrompt: selectedPrompt?.prompt ?? '',
-      messages: historyWithMessage,
+      modelId: selectedModelA,
+      rawSystemPrompt: selectedPrompt?.prompt ?? '',
+      message,
+      turns,
+      singleHistory,
       temperature,
       maxTokens: DEFAULT_MAX_TOKENS,
       reasoningEffort: thinking,
+      onPending: ({ turns: pendingTurns, singleHistory: pendingHistory }) => {
+        setTurns(pendingTurns);
+        persistModeConversation('single', {
+          turns: pendingTurns,
+          singleHistory: pendingHistory,
+          compareHistory,
+        });
+      },
+      onProgress: ({ turns: progressTurns, singleHistory: progressHistory }) => {
+        setTurns(progressTurns);
+        persistModeConversation('single', {
+          turns: progressTurns,
+          singleHistory: progressHistory,
+          compareHistory,
+        });
+      },
     });
 
-    const responseText = result.text || '[Empty response]';
-    const modelA = buildModelResponse({ modelId: selectedModelA, result });
-    const completedTurns = pendingTurns.map((turn) =>
-      turn.id === turnId
-        ? {
-            ...turn,
-            modelA: { ...modelA, text: responseText, pending: false },
-          }
-        : turn
-    );
-    const nextSingleHistory: LocalChatMessage[] = [
-      ...singleHistory,
-      { role: 'user', content: message },
-      { role: 'assistant', content: responseText },
-    ];
-
-    setTurns(completedTurns);
-    setSingleHistory(nextSingleHistory);
+    setTurns(result.turns);
+    setSingleHistory(result.singleHistory);
     persistModeConversation('single', {
-      turns: completedTurns,
-      singleHistory: nextSingleHistory,
+      turns: result.turns,
+      singleHistory: result.singleHistory,
       compareHistory,
     });
   }
 
   async function runCompareTurn(message: string) {
-    const turnId = crypto.randomUUID();
-    const historyA: LocalChatMessage[] = [...compareHistory.modelA, { role: 'user', content: message }];
-    const historyB: LocalChatMessage[] = [...compareHistory.modelB, { role: 'user', content: message }];
-    const pendingTurn: ChatTurn = {
-      id: turnId,
-      createdAt: new Date().toISOString(),
-      userText: message,
-      modelA: {
-        modelId: selectedModelA,
-        text: '',
-        pending: true,
-        latencyMs: 0,
-        usage: null,
+    const result = await runCompareModelTestingTurn({
+      token: settings.token,
+      botId: selectedBotId,
+      modelAId: selectedModelA,
+      modelBId: selectedModelB,
+      rawSystemPrompt: selectedPrompt?.prompt ?? '',
+      message,
+      turns,
+      compareHistory,
+      temperature,
+      maxTokens: DEFAULT_MAX_TOKENS,
+      reasoningEffort: thinking,
+      onPending: ({ turns: pendingTurns, compareHistory: pendingHistory }) => {
+        setTurns(pendingTurns);
+        persistModeConversation('compare', {
+          turns: pendingTurns,
+          singleHistory,
+          compareHistory: pendingHistory,
+        });
       },
-      modelB: {
-        modelId: selectedModelB,
-        text: '',
-        pending: true,
-        latencyMs: 0,
-        usage: null,
-      },
-    };
-    const pendingTurns = [...turns, pendingTurn];
+      onProgress: ({ turns: progressTurns, compareHistory: progressHistory }) => {
+        setTurns((previousTurns) => {
+          const mergedTurns = previousTurns.map((previousTurn) => {
+            const nextTurn = progressTurns.find((turn) => turn.id === previousTurn.id);
+            if (!nextTurn) {
+              return previousTurn;
+            }
 
-    setTurns(pendingTurns);
-    persistModeConversation('compare', {
-      turns: pendingTurns,
-      singleHistory,
-      compareHistory: {
-        modelA: historyA,
-        modelB: historyB,
+            return {
+              ...previousTurn,
+              modelA: responseHasProgress(nextTurn.modelA) ? nextTurn.modelA : previousTurn.modelA,
+              modelB:
+                nextTurn.modelB && responseHasProgress(nextTurn.modelB)
+                  ? nextTurn.modelB
+                  : previousTurn.modelB,
+            };
+          });
+
+          persistModeConversation('compare', {
+            turns: mergedTurns,
+            singleHistory,
+            compareHistory: progressHistory,
+          });
+
+          return mergedTurns;
+        });
       },
     });
 
-    const [resultA, resultB] = await Promise.allSettled([
-      generateTextWithCognitiveApi({
-        token: settings.token,
-        botId: selectedBotId,
-        model: selectedModelA,
-        systemPrompt: selectedPrompt?.prompt ?? '',
-        messages: historyA,
-        temperature,
-        maxTokens: DEFAULT_MAX_TOKENS,
-        reasoningEffort: thinking,
-      }),
-      generateTextWithCognitiveApi({
-        token: settings.token,
-        botId: selectedBotId,
-        model: selectedModelB,
-        systemPrompt: selectedPrompt?.prompt ?? '',
-        messages: historyB,
-        temperature,
-        maxTokens: DEFAULT_MAX_TOKENS,
-        reasoningEffort: thinking,
-      }),
-    ]);
-
-    const modelA =
-      resultA.status === 'fulfilled'
-        ? buildModelResponse({ modelId: selectedModelA, result: resultA.value })
-        : buildModelResponse({ modelId: selectedModelA, error: getErrorMessage(resultA.reason, 'Generation failed') });
-
-    const modelB =
-      resultB.status === 'fulfilled'
-        ? buildModelResponse({ modelId: selectedModelB, result: resultB.value })
-        : buildModelResponse({ modelId: selectedModelB, error: getErrorMessage(resultB.reason, 'Generation failed') });
-    const completedTurns = pendingTurns.map((turn) =>
-      turn.id === turnId
-        ? {
-            ...turn,
-            modelA: { ...modelA, pending: false },
-            modelB: { ...modelB, pending: false },
-          }
-        : turn
-    );
-    const nextCompareHistory: PerModelHistory = {
-      modelA: [
-        ...compareHistory.modelA,
-        { role: 'user', content: message },
-        { role: 'assistant', content: modelA.error ? `[Error] ${modelA.error}` : modelA.text || '[Empty response]' },
-      ],
-      modelB: [
-        ...compareHistory.modelB,
-        { role: 'user', content: message },
-        { role: 'assistant', content: modelB.error ? `[Error] ${modelB.error}` : modelB.text || '[Empty response]' },
-      ],
-    };
-
-    setTurns(completedTurns);
-    setCompareHistory(nextCompareHistory);
+    setTurns(result.turns);
+    setCompareHistory(result.compareHistory);
     persistModeConversation('compare', {
-      turns: completedTurns,
+      turns: result.turns,
       singleHistory,
-      compareHistory: nextCompareHistory,
+      compareHistory: result.compareHistory,
     });
   }
 
@@ -1384,8 +1458,10 @@ export default function ModelTesting() {
               <div className="space-y-2">
                 <Label htmlFor="prompt-selector">Prompt</Label>
                 <Select value={selectedPromptKey} onValueChange={setSelectedPromptKey}>
-                  <SelectTrigger id="prompt-selector">
-                    <SelectValue placeholder="Choisir un prompt" />
+                  <SelectTrigger id="prompt-selector" className="w-full min-w-0">
+                    <SelectValue placeholder="Choisir un prompt">
+                      {selectedPrompt ? <span className="block truncate">{selectedPrompt.label || 'Sans label'}</span> : null}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {promptOptions.map((option) => (
@@ -1521,6 +1597,7 @@ export default function ModelTesting() {
                     </article>
                   ))
                 )}
+                <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
 

@@ -28,9 +28,21 @@ export type LocalChatMessage = {
   content: string;
 };
 
+export interface ModelResponseStep {
+  id: string;
+  kind: 'message' | 'tool_call';
+  text?: string;
+  toolName?: string;
+  toolArgs?: Record<string, unknown>;
+  status?: 'pending' | 'completed' | 'failed';
+  error?: string;
+}
+
 export interface ModelResponse {
   modelId: string;
   text: string;
+  messages?: string[];
+  steps?: ModelResponseStep[];
   error?: string;
   pending?: boolean;
   latencyMs: number;

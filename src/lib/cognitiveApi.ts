@@ -12,6 +12,7 @@ interface GenerateTextParams {
   temperature: number;
   maxTokens: number;
   reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'dynamic';
+  responseFormat?: 'json_object' | 'text';
   timeoutMs?: number;
 }
 
@@ -101,6 +102,7 @@ export async function generateTextWithCognitiveApi({
   temperature,
   maxTokens,
   reasoningEffort,
+  responseFormat,
   timeoutMs = 45000,
 }: GenerateTextParams): Promise<GenerateTextResult> {
   const controller = new AbortController();
@@ -112,6 +114,7 @@ export async function generateTextWithCognitiveApi({
     temperature,
     maxTokens,
     reasoningEffort,
+    responseFormat,
     messages: [
       {
         role: 'system',
