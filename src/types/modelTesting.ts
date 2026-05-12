@@ -46,6 +46,13 @@ export interface ModelResponse {
   error?: string;
   pending?: boolean;
   latencyMs: number;
+  timing?: {
+    totalMs: number;
+    segments: Array<{
+      label: string;
+      durationMs: number;
+    }>;
+  };
   usage?: {
     inputTokens?: number;
     outputTokens?: number;

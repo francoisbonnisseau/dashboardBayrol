@@ -17,6 +17,14 @@ import {
   type ThinkingOption,
 } from '@/lib/modelTestingConfig';
 import { runCompareModelTestingTurn, runSingleModelTestingTurn } from '@/lib/modelTestingAgent';
+import {
+  buildAiModelTableUpdateRow,
+  buildPushLivePayload,
+  getProviderFromModelId,
+  normalizeAiModelConfigRow,
+  type AiModelConfigRow,
+} from '@/lib/modelTestingPushLive';
+import { buildTimingBreakdownTitle, formatLatencyLabel, getDisplayedLatencyMs } from '@/lib/modelTestingTiming';
 import { cn } from '@/lib/utils';
 import {
   getPromptSelectionKey,
@@ -37,21 +45,17 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
 const TABLE_NAME = 'promptsTable';
+const AI_MODEL_TABLE_NAME = 'AIModelTable';
 const ALLOWED_PROMPT_BOTS = new Set(['fr', 'de', 'es']);
 const DEFAULT_TEMPERATURE = 0.3;
 const DEFAULT_MAX_TOKENS = 1200;
 const MODEL_TESTING_STORAGE_KEY = 'model-testing-config-v4';
-
-function getProviderFromModelId(modelId: string) {
-  return modelId.split(':')[0] || 'other';
-}
 
 function getProviderLabel(provider: string) {
   switch (provider) {
@@ -258,10 +262,6 @@ function formatTime(isoDate: string) {
   }).format(date);
 }
 
-function latencyLabel(latencyMs: number) {
-  return `${(latencyMs / 1000).toFixed(1).replace('.', ',')} s`;
-}
-
 function costLabel(usage?: ModelResponse['usage']) {
   if (!usage) {
     return null;
@@ -409,6 +409,7 @@ function ResponseCard({
   accentClassName: string;
 }) {
   const cost = costLabel(response.usage);
+  const timingTitle = buildTimingBreakdownTitle(response);
   const messages = getRenderableResponseMessages(response);
   const steps = response.steps ?? [];
 
@@ -480,7 +481,7 @@ function ResponseCard({
       <div className="px-4 pb-4 text-sm text-slate-500">
         <span>{cost ? `Cost ${cost}` : 'Cost -'}</span>
         <span className="mx-2">·</span>
-        <span>Time {latencyLabel(response.latencyMs)}</span>
+        <span title={timingTitle ?? undefined}>Time {formatLatencyLabel(getDisplayedLatencyMs(response))}</span>
       </div>
     </div>
   );
@@ -517,6 +518,10 @@ export default function ModelTesting() {
   const [pushDialogOpen, setPushDialogOpen] = useState(false);
   const [pushModelId, setPushModelId] = useState('');
   const [pushTemperature, setPushTemperature] = useState(String(DEFAULT_TEMPERATURE));
+  const [pushReasoningEffort, setPushReasoningEffort] = useState<ThinkingOption>('medium');
+  const [liveAiModelConfig, setLiveAiModelConfig] = useState<AiModelConfigRow | null>(null);
+  const [pushConfigLoading, setPushConfigLoading] = useState(false);
+  const [pushConfigSaving, setPushConfigSaving] = useState(false);
   const [settingsCollapsed, setSettingsCollapsed] = useState(false);
   const hydratedBotIdRef = useRef<string | null>(null);
 
@@ -964,10 +969,43 @@ export default function ModelTesting() {
   function openPushDialog() {
     setPushModelId(selectedModelA);
     setPushTemperature(clampPushTemperature(temperature).toString());
+    setPushReasoningEffort(thinking);
     setPushDialogOpen(true);
+    void loadLiveAiModelConfig();
+  }
+
+  async function loadLiveAiModelConfig() {
+    if (!client) {
+      setLiveAiModelConfig(null);
+      return;
+    }
+
+    setPushConfigLoading(true);
+    try {
+      const response = await client.findTableRows({
+        table: AI_MODEL_TABLE_NAME,
+        limit: 1,
+      });
+      const row = response.rows[0] ? normalizeAiModelConfigRow(response.rows[0] as Record<string, unknown>) : null;
+      setLiveAiModelConfig(row);
+      if (!row) {
+        toast.error('Aucune ligne trouvee dans AIModelTable');
+      }
+    } catch (error) {
+      console.error('Error loading AI model config:', error);
+      setLiveAiModelConfig(null);
+      toast.error('Impossible de charger AIModelTable');
+    } finally {
+      setPushConfigLoading(false);
+    }
   }
 
   async function handlePushToLive() {
+    if (!client) {
+      toast.error('Botpress client indisponible');
+      return;
+    }
+
     if (!pushModelId) {
       toast.error('Selectionnez un modele');
       return;
@@ -979,8 +1017,32 @@ export default function ModelTesting() {
       return;
     }
 
-    toast.info('Push to live non connecte a Botpress pour le moment');
-    setPushDialogOpen(false);
+    if (!liveAiModelConfig) {
+      toast.error('Aucune ligne AIModelTable a mettre a jour');
+      return;
+    }
+
+    const payload = buildPushLivePayload({
+      modelId: pushModelId,
+      temperature: nextTemperature,
+      reasoningEffort: pushReasoningEffort,
+    });
+
+    setPushConfigSaving(true);
+    try {
+      await client.updateTableRows({
+        table: AI_MODEL_TABLE_NAME,
+        rows: [buildAiModelTableUpdateRow(liveAiModelConfig, payload)],
+      });
+      toast.success('Configuration IA live mise a jour');
+      setPushDialogOpen(false);
+      setLiveAiModelConfig(buildAiModelTableUpdateRow(liveAiModelConfig, payload));
+    } catch (error) {
+      console.error('Error updating AI model config:', error);
+      toast.error('Impossible de mettre a jour AIModelTable');
+    } finally {
+      setPushConfigSaving(false);
+    }
   }
 
   function clearConversation() {
@@ -1658,10 +1720,15 @@ export default function ModelTesting() {
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="push-model">Modele</Label>
+              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-model">
+                Model
+                <Badge variant="outline" className="max-w-full truncate border-slate-200 bg-slate-50 text-slate-500">
+                  Current: {pushConfigLoading ? 'loading' : liveAiModelConfig?.model || '-'}
+                </Badge>
+              </Label>
               <Select value={pushModelId} onValueChange={setPushModelId}>
                 <SelectTrigger id="push-model">
-                  <SelectValue placeholder="Choisir un modele" />
+                  <SelectValue placeholder="Choisir un model" />
                 </SelectTrigger>
                 <SelectContent>
                   {models.map((model) => (
@@ -1674,21 +1741,65 @@ export default function ModelTesting() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="push-temperature">Temperature</Label>
-              <Input
-                id="push-temperature"
-                type="number"
-                min={0}
-                max={1}
-                step={0.1}
-                value={pushTemperature}
-                onChange={(event) => setPushTemperature(event.target.value)}
-              />
+              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-temperature">
+                Temperature
+                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-500">
+                  Current: {pushConfigLoading ? 'loading' : liveAiModelConfig?.temperature.toFixed(1) ?? '-'}
+                </Badge>
+              </Label>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="text-slate-600">Precision</span>
+                  <span className="font-medium text-slate-900">
+                    {(Number(pushTemperature) || 0).toFixed(1)}
+                  </span>
+                </div>
+                <input
+                  id="push-temperature"
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={pushTemperature}
+                  onChange={(event) => setPushTemperature(event.target.value)}
+                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600"
+                />
+                <div className="mt-2 flex justify-between text-xs text-slate-500">
+                  <span>0.0</span>
+                  <span>1.0</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-reasoning-effort">
+                Thinking
+                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-500">
+                  Current: {pushConfigLoading ? 'loading' : liveAiModelConfig?.reasoningEffort || '-'}
+                </Badge>
+              </Label>
+              <Select value={pushReasoningEffort} onValueChange={(value) => setPushReasoningEffort(value as ThinkingOption)}>
+                <SelectTrigger id="push-reasoning-effort">
+                  <SelectValue placeholder="Choisir le thinking" />
+                </SelectTrigger>
+                <SelectContent>
+                  {THINKING_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           <DialogFooter>
-            <Button className="bg-blue-600 text-white hover:bg-blue-700" onClick={() => void handlePushToLive()}>
+            <Button
+              className="bg-blue-600 text-white hover:bg-blue-700"
+              disabled={pushConfigLoading || pushConfigSaving || !liveAiModelConfig}
+              onClick={() => void handlePushToLive()}
+            >
+              {pushConfigSaving ? <Loader2 className="size-4 animate-spin" /> : null}
               Push
             </Button>
           </DialogFooter>

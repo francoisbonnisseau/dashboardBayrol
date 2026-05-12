@@ -1,4 +1,4 @@
-import type { CognitiveModel, LocalChatMessage } from '@/types/modelTesting';
+import type { CognitiveModel, LocalChatMessage } from '../types/modelTesting.ts';
 
 const COGNITIVE_MODELS_URL = 'https://api.botpress.cloud/v2/cognitive/models';
 const COGNITIVE_GENERATE_TEXT_URL = 'https://api.botpress.cloud/v2/cognitive/generate-text';
