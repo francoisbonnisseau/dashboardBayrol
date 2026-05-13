@@ -514,6 +514,7 @@ export default function ModelTesting() {
   const [configSaved, setConfigSaved] = useState(true);
   const configBootedRef = useRef(false);
   const restoringConfigRef = useRef(false);
+  const modelSelectionResetRef = useRef(false);
 
   const [pushDialogOpen, setPushDialogOpen] = useState(false);
   const [pushModelId, setPushModelId] = useState('');
@@ -675,6 +676,66 @@ export default function ModelTesting() {
         chatState,
       })
     );
+  }
+
+  function resetConversationForModelSelection(nextModelA: string, nextModelB = selectedModelB) {
+    const normalizedSelection = {
+      modelA: nextModelA,
+      modelB: comparisonEnabled ? nextModelB : '',
+    };
+    const clearedSnapshot: ModeSnapshot = {
+      thinking,
+      staticThinking,
+      temperature,
+      selectedProviderA,
+      selectedProviderB,
+      selectedModelA: nextModelA,
+      selectedModelB: nextModelB,
+      selectedPromptKey,
+      turns: [],
+      singleHistory: [],
+      compareHistory: { modelA: [], modelB: [] },
+    };
+
+    previousModelSelectionRef.current = normalizedSelection;
+    configBootedRef.current = true;
+    modelSelectionResetRef.current = true;
+    setTurns([]);
+    setSingleHistory([]);
+    setCompareHistory({ modelA: [], modelB: [] });
+    setUserMessage('');
+
+    if (selectedBotId) {
+      const existingState = readSavedBotState(selectedBotId);
+      writeSavedBotState(
+        selectedBotId,
+        buildSavedStateWithClearedConversation({
+          existingState,
+          currentMode,
+          currentSnapshot: clearedSnapshot,
+        })
+      );
+    }
+
+    setConfigSaved(true);
+  }
+
+  function handleModelAChange(nextModel: string) {
+    if (nextModel === selectedModelA) {
+      return;
+    }
+
+    setSelectedModelA(nextModel);
+    resetConversationForModelSelection(nextModel);
+  }
+
+  function handleModelBChange(nextModel: string) {
+    if (nextModel === selectedModelB) {
+      return;
+    }
+
+    setSelectedModelB(nextModel);
+    resetConversationForModelSelection(selectedModelA, nextModel);
   }
 
   useEffect(() => {
@@ -901,6 +962,11 @@ export default function ModelTesting() {
 
     const previousModelSelection = previousModelSelectionRef.current;
     previousModelSelectionRef.current = currentModelSelection;
+
+    if (modelSelectionResetRef.current) {
+      modelSelectionResetRef.current = false;
+      return;
+    }
 
     if (
       previousModelSelection &&
@@ -1383,7 +1449,7 @@ export default function ModelTesting() {
 
                 <div className="space-y-2">
                   <Label htmlFor="model-a">Model A</Label>
-                  <Select value={selectedModelA} onValueChange={setSelectedModelA} disabled={modelsLoading}>
+                  <Select value={selectedModelA} onValueChange={handleModelAChange} disabled={modelsLoading}>
                     <SelectTrigger id="model-a" className="w-full min-w-0">
                       <SelectValue placeholder="Choisir un modele">
                         {selectedModelAData ? (
@@ -1422,7 +1488,7 @@ export default function ModelTesting() {
 
                   <div className="space-y-2">
                     <Label htmlFor="model-b">Model B</Label>
-                    <Select value={selectedModelB} onValueChange={setSelectedModelB} disabled={modelsLoading}>
+                    <Select value={selectedModelB} onValueChange={handleModelBChange} disabled={modelsLoading}>
                       <SelectTrigger id="model-b" className="w-full min-w-0">
                         <SelectValue placeholder="Choisir un modele">
                           {selectedModelBData ? (
