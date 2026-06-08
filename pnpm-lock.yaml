@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@botpress/client':
-        specifier: ^1.15.1
-        version: 1.15.1
+        specifier: ^1.46.0
+        version: 1.46.0
       '@hookform/resolvers':
         specifier: ^5.1.1
         version: 5.1.1(react-hook-form@7.58.0(react@19.1.0))
@@ -225,8 +225,8 @@ packages:
     resolution: {integrity: sha512-ETyHEk2VHHvl9b9jZP5IHPavHYk57EhanlRRuae9XCpb/j5bDCbPPMOBfCWhnl/7EDJz0jEMCi/RhccCE8r1+Q==}
     engines: {node: '>=6.9.0'}
 
-  '@botpress/client@1.15.1':
-    resolution: {integrity: sha512-oQQkN9iO6L40T92NaMXOBUKDf6rr4/sHGZj85p6T+kJa5GSTRht/kumhQ/Vs2skFdTShwnG9HeHe5nhcM6ZOhA==}
+  '@botpress/client@1.46.0':
+    resolution: {integrity: sha512-g3K+vB2VgAoZT8qchx69V5zymMRdcZnncmwB50MhAL0eyfz6TQbLcoWBfcbbeZqqTjiQEJPqXH4GChO0Ohl0HQ==}
     engines: {node: '>=18.0.0'}
 
   '@date-fns/tz@1.2.0':
@@ -2671,7 +2671,7 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.27.1
 
-  '@botpress/client@1.15.1':
+  '@botpress/client@1.46.0':
     dependencies:
       axios: 1.10.0
       axios-retry: 4.5.0(axios@1.10.0)

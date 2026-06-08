@@ -7,24 +7,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DatePicker } from '@/components/ui/date-picker';
-import { RefreshCw, BarChart3, ThumbsUp, ThumbsDown, CheckCircle2, XCircle, Download } from 'lucide-react';
+import {
+  RefreshCw,
+  BarChart3,
+  ThumbsUp,
+  ThumbsDown,
+  CheckCircle2,
+  XCircle,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { subDays } from 'date-fns';
 import ConversationDetail from './ConversationDetail';
 import { formatBotpressError } from '@/lib/errorMessages';
+import { buildSentimentRowsQuery } from '@/lib/sentimentRows';
 
 const TABLE_NAME = 'conversationsAnalysisTable';
 
 interface SentimentRow {
   id: number;
-  createdAt: string;
-  updatedAt: string;
   date: string;
   topics?: string;
-  summary?: string;
   resolved: boolean;
   sentiment: 'very negative' | 'negative' | 'neutral' | 'positive' | 'very positive';
-  transcript?: string;
-  escalations?: string[];
   conversationId: string;
 }
 
@@ -34,8 +40,8 @@ interface TableResponse {
     name: string;
     factor: number;
     frozen: boolean;
-    schema: any;
-    tags: Record<string, any>;
+    schema: unknown;
+    tags: Record<string, unknown>;
     isComputeEnabled: boolean;
     createdAt: string;
     updatedAt: string;
@@ -57,8 +63,10 @@ export default function SentimentAnalysis() {
   // Filter states
   const [sentimentFilter, setSentimentFilter] = useState<string | null>(null);
   const [showResolved, setShowResolved] = useState<boolean>(false);
-  const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 7));
+  const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 2));
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  const [currentPage, setCurrentPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   // Conversation detail states
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [conversationSheetOpen, setConversationSheetOpen] = useState<boolean>(false);
@@ -83,56 +91,36 @@ export default function SentimentAnalysis() {
     setError(null);
     
     try {
-      // Build date filter
-      const dateFilter: any = {};
-      if (startDate) {
-        dateFilter.$gte = startDate.toISOString();
-      }
-      if (endDate) {
-        // Set end date to end of day
-        const endOfDay = new Date(endDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        dateFilter.$lte = endOfDay.toISOString();
-      }
-      
-      // Use the client.findTableRows method directly as shown in the demo code
-      const { rows } = await client.findTableRows({
+      const response = await client.findTableRows({
         table: TABLE_NAME,
-        limit: 1000,
-        offset: 0,
-        filter: {
-          // Filter by sentiment if needed
-          ...(sentimentFilter && { sentiment: { $eq: sentimentFilter } }),
-          // Filter by resolved status if needed
-          ...(!showResolved && { resolved: { $eq: false } }),
-          // Filter by date range if needed
-          ...((startDate || endDate) && { date: dateFilter })
-        },
-        orderBy: 'date',
-        orderDirection: 'desc'
+        ...buildSentimentRowsQuery({
+          page: currentPage,
+          sentiment: sentimentFilter,
+          showResolved,
+          startDate,
+          endDate,
+        }),
       });
-        // Transform the rows to match our expected format
-      const formattedRows = rows.map((row: any) => ({
+
+      const formattedRows = response.rows.map((row) => ({
         id: row.id,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
         date: row.date,
         topics: row.topics || '',
-        summary: row.summary || '',
         resolved: !!row.resolved,
         sentiment: row.sentiment || 'neutral',
-        transcript: row.transcript || '',
-        escalations: row.escalations || [],
         conversationId: row.conversationId || ''
       }));
       
       setRows(formattedRows);
+      setHasMore(response.hasMore);
     } catch (err) {
       setError(formatBotpressError(err, 'Failed to fetch rows'));
-      console.error('Error fetching rows:', err);    } finally {
+      setHasMore(false);
+      console.error('Error fetching rows:', err);
+    } finally {
       setLoading(false);
     }
-  }, [client, sentimentFilter, showResolved, startDate, endDate]);
+  }, [client, currentPage, sentimentFilter, showResolved, startDate, endDate]);
   
   // Fetch table information
   const fetchTableInfo = useCallback(async () => {
@@ -162,7 +150,7 @@ export default function SentimentAnalysis() {
     if (client) {
       fetchRows();
     }
-  }, [client, fetchRows, sentimentFilter, showResolved, startDate, endDate]);
+  }, [client, fetchRows]);
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -271,7 +259,7 @@ export default function SentimentAnalysis() {
             const orderedMessages = [...response.messages].reverse();
             
             // Build conversation object with user/bot alternating structure
-            orderedMessages.forEach((message: any) => {
+            orderedMessages.forEach((message) => {
               const role = message.direction === 'incoming' ? 'user' : 'bot';
               const key = `${role}${messageIndex}`;
               conversation[key] = message.payload?.text || '';
@@ -359,7 +347,13 @@ export default function SentimentAnalysis() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <span className="text-sm font-medium text-muted-foreground">Bot:</span>
-                <Select value={selectedBotId} onValueChange={setSelectedBotId}>
+                <Select
+                  value={selectedBotId}
+                  onValueChange={(botId) => {
+                    setCurrentPage(0);
+                    setSelectedBotId(botId);
+                  }}
+                >
                   <SelectTrigger className="w-[180px] h-9">
                     <SelectValue placeholder="Select a bot" />
                   </SelectTrigger>
@@ -408,7 +402,10 @@ export default function SentimentAnalysis() {
                 </label>
                 <Select 
                   value={sentimentFilter || 'all'} 
-                  onValueChange={(value) => setSentimentFilter(value === 'all' ? null : value)}
+                  onValueChange={(value) => {
+                    setCurrentPage(0);
+                    setSentimentFilter(value === 'all' ? null : value);
+                  }}
                 >
                   <SelectTrigger className="w-[150px] h-9">
                     <SelectValue placeholder="All" />
@@ -432,14 +429,20 @@ export default function SentimentAnalysis() {
                 <div className="flex items-center gap-2">
                   <DatePicker
                     date={startDate}
-                    setDate={setStartDate}
+                    setDate={(date) => {
+                      setCurrentPage(0);
+                      setStartDate(date);
+                    }}
                     placeholder="Start"
                     className="w-[140px]"
                   />
                   <span className="text-muted-foreground">→</span>
                   <DatePicker
                     date={endDate}
-                    setDate={setEndDate}
+                    setDate={(date) => {
+                      setCurrentPage(0);
+                      setEndDate(date);
+                    }}
                     placeholder="End"
                     className="w-[140px]"
                   />
@@ -457,7 +460,10 @@ export default function SentimentAnalysis() {
                   className={`h-9 ${showResolved 
                     ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100 hover:text-green-800' 
                     : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100 hover:text-red-800'}`}
-                  onClick={() => setShowResolved(!showResolved)}
+                  onClick={() => {
+                    setCurrentPage(0);
+                    setShowResolved(!showResolved);
+                  }}
                 >
                   {showResolved ? (
                     <>
@@ -477,7 +483,8 @@ export default function SentimentAnalysis() {
               {(startDate || endDate || sentimentFilter || showResolved) && (
                 <Button
                   onClick={() => {
-                    setStartDate(subDays(new Date(), 7));
+                    setCurrentPage(0);
+                    setStartDate(subDays(new Date(), 2));
                     setEndDate(new Date());
                     setSentimentFilter(null);
                     setShowResolved(false);
@@ -567,6 +574,29 @@ export default function SentimentAnalysis() {
                   ))}
                 </TableBody>
               </Table>
+              <div className="flex items-center justify-between border-t px-4 py-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((page) => Math.max(0, page - 1))}
+                  disabled={loading || currentPage === 0}
+                >
+                  <ChevronLeft className="mr-2 h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {currentPage + 1}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((page) => page + 1)}
+                  disabled={loading || !hasMore}
+                >
+                  Next
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </div>
