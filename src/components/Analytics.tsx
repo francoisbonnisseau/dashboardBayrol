@@ -5,10 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, MessageSquare, BarChart3, CheckCircle2, XCircle, Smile, Meh, Bot } from 'lucide-react';
+import { Loader2, Users, MessageSquare, BarChart3, CheckCircle2, XCircle, Smile, Meh, Bot, Sparkles } from 'lucide-react';
 import { subDays, format } from 'date-fns';
 import { toast } from 'sonner';
 import { Area, AreaChart, XAxis, YAxis, ResponsiveContainer, CartesianGrid, Tooltip } from 'recharts';
+import {
+  calculateAiCostMetrics,
+  type BotpressAnalyticsRecord,
+} from '@/lib/analyticsMetrics';
 
 const TABLE_NAME = 'conversationsAnalysisTable';
 
@@ -22,14 +26,26 @@ const SENTIMENT_COLORS: Record<string, string> = {
 };
 
 // Custom tooltip for charts
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface ChartPayloadItem {
+  name?: string;
+  value?: number | string;
+  color?: string;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: ChartPayloadItem[];
+  label?: string;
+}
+
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3">
         <p className="font-medium text-sm mb-1 text-gray-900 dark:text-gray-100">{label}</p>
-        {payload.map((entry: any, index: number) => (
+        {payload.map((entry, index) => (
           <p key={index} className="text-sm" style={{ color: entry.color }}>
-            {entry.name}: {entry.value.toLocaleString()}
+            {entry.name}: {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
           </p>
         ))}
       </div>
@@ -57,12 +73,27 @@ interface ConversationRow {
   conversationId: string;
 }
 
+interface ConversationAnalysisTableRow {
+  id: number;
+  createdAt?: string;
+  updatedAt?: string;
+  date?: string;
+  topics?: string[];
+  summary?: string;
+  resolved?: boolean;
+  sentiment?: string;
+  transcript?: TranscriptMessage[];
+  escalations?: string[];
+  conversationId?: string;
+}
+
 interface DailyAnalytics {
   date: string;
   uniqueUsers: number;
   userMessages: number;
   botMessages: number;
   conversations: number;
+  aiCostUsd: number | null;
 }
 
 interface AnalyticsSummary {
@@ -72,6 +103,8 @@ interface AnalyticsSummary {
   totalConversations: number;
   avgUserMessagesPerConversation: number;
   avgBotMessagesPerConversation: number;
+  totalAiCostUsd: number | null;
+  avgAiCostPerConversationUsd: number | null;
 }
 
 interface SentimentData {
@@ -84,6 +117,15 @@ interface ResolutionData {
   resolved: number;
   unresolved: number;
   resolutionRate: number;
+}
+
+function formatUsd(value: number, fractionDigits: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
 }
 
 export default function Analytics() {
@@ -102,7 +144,7 @@ export default function Analytics() {
   // Set default bot if none selected
   useEffect(() => {
     if (!selectedBotId && settings.bots.length > 0) {
-      const firstConfiguredBot = settings.bots.find((bot: any) => bot.botId);
+      const firstConfiguredBot = settings.bots.find((bot) => bot.botId);
       if (firstConfiguredBot) {
         setSelectedBotId(firstConfiguredBot.botId);
       }
@@ -110,7 +152,10 @@ export default function Analytics() {
   }, [settings.bots, selectedBotId]);
 
   // Calculate summary from analytics data
-  const calculateSummary = useCallback((records: DailyAnalytics[]): AnalyticsSummary => {
+  const calculateSummary = useCallback((
+    records: DailyAnalytics[],
+    aiCostMetrics: { totalAiCostUsd: number; avgAiCostPerConversationUsd: number } | null
+  ): AnalyticsSummary => {
     if (records.length === 0) {
       return {
         totalUsers: 0,
@@ -118,7 +163,9 @@ export default function Analytics() {
         totalBotMessages: 0,
         totalConversations: 0,
         avgUserMessagesPerConversation: 0,
-        avgBotMessagesPerConversation: 0
+        avgBotMessagesPerConversation: 0,
+        totalAiCostUsd: aiCostMetrics?.totalAiCostUsd ?? null,
+        avgAiCostPerConversationUsd: aiCostMetrics?.avgAiCostPerConversationUsd ?? null
       };
     }
 
@@ -137,7 +184,9 @@ export default function Analytics() {
         : 0,
       avgBotMessagesPerConversation: totalConversations > 0 
         ? Math.round((totalBotMessages / totalConversations) * 10) / 10 
-        : 0
+        : 0,
+      totalAiCostUsd: aiCostMetrics?.totalAiCostUsd ?? null,
+      avgAiCostPerConversationUsd: aiCostMetrics?.avgAiCostPerConversationUsd ?? null
     };
   }, []);
 
@@ -159,15 +208,28 @@ export default function Analytics() {
       const endTimestamp = endOfDay.toISOString();
       
       console.log('Fetching conversations from', startTimestamp, 'to', endTimestamp);
+
+      const botAnalyticsPromise = client
+        .getBotAnalytics({
+          id: selectedBotId,
+          startDate: startTimestamp,
+          endDate: endTimestamp,
+        })
+        .then((response) => response.records as BotpressAnalyticsRecord[])
+        .catch((error) => {
+          console.error('Error fetching Botpress AI cost analytics:', error);
+          toast.error('Failed to fetch AI cost analytics');
+          return null;
+        });
       
       // Fetch data with MongoDB-like filter to get only rows in date range
-      let allRows: any[] = [];
+      let allRows: ConversationAnalysisTableRow[] = [];
       let currentOffset = 0;
       const batchSize = 1000; // Maximum allowed by API
       let hasMore = true;
       
       while (hasMore) {
-        const params: any = {
+        const params = {
           table: TABLE_NAME,
           limit: batchSize,
           offset: currentOffset,
@@ -182,12 +244,12 @@ export default function Analytics() {
         const response = await client.findTableRows(params);
         
         if (response.rows && response.rows.length > 0) {
-          allRows = allRows.concat(response.rows);
+          allRows = allRows.concat(response.rows as unknown as ConversationAnalysisTableRow[]);
           console.log(`Fetched ${response.rows.length} rows at offset ${currentOffset}, total: ${allRows.length}`);
         }
         
         // Check the hasMore flag from the API response
-        hasMore = (response as any).hasMore === true;
+        hasMore = (response as { hasMore?: boolean }).hasMore === true;
         
         if (hasMore) {
           currentOffset += batchSize;
@@ -215,12 +277,17 @@ export default function Analytics() {
       // No need to filter by date anymore since the filter is applied in the query
       const conversationsMap = new Map<string, ConversationRow>();
       
-      allRows.forEach((row: any) => {
+      allRows.forEach((row) => {
         const convId = row.conversationId;
         
         // Skip rows without conversationId
         if (!convId) {
           console.warn('Row without conversationId:', row.id);
+          return;
+        }
+
+        if (!row.createdAt) {
+          console.warn('Row without createdAt:', row.id);
           return;
         }
         
@@ -232,21 +299,38 @@ export default function Analytics() {
           conversationsMap.set(convId, {
             id: row.id,
             createdAt: row.createdAt,
-            updatedAt: row.updatedAt,
-            date: row.date,
+            updatedAt: row.updatedAt || '',
+            date: row.date || '',
             topics: row.topics || [],
             summary: row.summary || '',
             resolved: !!row.resolved,
             sentiment: row.sentiment || 'neutral',
             transcript: row.transcript || [],
             escalations: row.escalations || [],
-            conversationId: row.conversationId
+            conversationId: convId
           });
         }
       });
 
       const uniqueConversations = Array.from(conversationsMap.values());
       console.log(`${uniqueConversations.length} unique conversations after deduplication`);
+
+      const botAnalyticsRecords = await botAnalyticsPromise;
+      const aiCostMetrics = botAnalyticsRecords
+        ? calculateAiCostMetrics(botAnalyticsRecords, uniqueConversations.length)
+        : null;
+      const aiCostByDate = new Map<string, number>();
+
+      botAnalyticsRecords?.forEach((record) => {
+        const startDateTimeUtc = record.startDateTimeUtc;
+        if (!startDateTimeUtc) return;
+
+        const recordDate = new Date(startDateTimeUtc);
+        if (isNaN(recordDate.getTime())) return;
+
+        const dateKey = format(recordDate, 'yyyy-MM-dd');
+        aiCostByDate.set(dateKey, (aiCostByDate.get(dateKey) ?? 0) + (record.llm?.cost?.sum ?? 0));
+      });
 
       // Group by date and calculate metrics
       const dailyMetricsMap = new Map<string, {
@@ -301,7 +385,8 @@ export default function Analytics() {
           uniqueUsers: metrics.uniqueUsers.size,
           userMessages: metrics.userMessages,
           botMessages: metrics.botMessages,
-          conversations: metrics.conversations
+          conversations: metrics.conversations,
+          aiCostUsd: botAnalyticsRecords ? (aiCostByDate.get(date) ?? 0) : null
         }))
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -326,7 +411,7 @@ export default function Analytics() {
       });
 
       const sentimentDistribution: SentimentData[] = Object.entries(sentimentCounts)
-        .filter(([_, value]) => value > 0)
+        .filter(([, value]) => value > 0)
         .map(([name, value]) => ({
           name: name.charAt(0).toUpperCase() + name.slice(1),
           value,
@@ -342,7 +427,7 @@ export default function Analytics() {
 
       if (dailyAnalytics.length > 0) {
         setAnalyticsData(dailyAnalytics);
-        setSummary(calculateSummary(dailyAnalytics));
+        setSummary(calculateSummary(dailyAnalytics, aiCostMetrics));
         setSentimentData(sentimentDistribution);
         setResolutionData({ resolved: resolvedCount, unresolved: unresolvedCount, resolutionRate });
         toast.success(`Analytics data loaded for ${dailyAnalytics.length} days`);
@@ -400,7 +485,7 @@ export default function Analytics() {
                     <SelectValue placeholder="Select a bot" />
                   </SelectTrigger>
                   <SelectContent>
-                    {settings.bots.filter((bot: any) => bot.botId).map((bot: any) => (
+                    {settings.bots.filter((bot) => bot.botId).map((bot) => (
                       <SelectItem key={bot.id} value={bot.botId}>
                         {bot.name}
                       </SelectItem>
@@ -460,7 +545,7 @@ export default function Analytics() {
 
       {/* Summary Cards - Row 1 */}
       {summary && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <Card className="relative overflow-hidden">
             <div className="absolute top-0 right-0 w-20 h-20 -mr-6 -mt-6 rounded-full bg-orange-500/10" />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -529,6 +614,27 @@ export default function Analytics() {
               <div className="text-3xl font-bold">{summary.totalBotMessages.toLocaleString()}</div>
               <p className="text-sm text-muted-foreground mt-1">
                 ~{summary.avgBotMessagesPerConversation} per conversation
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 -mr-6 -mt-6 rounded-full bg-sky-500/10" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">AI Cost / Conversation</CardTitle>
+              <div className="h-8 w-8 rounded-lg bg-sky-500/10 flex items-center justify-center">
+                <Sparkles className="h-4 w-4 text-sky-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                {summary.avgAiCostPerConversationUsd === null
+                  ? '-'
+                  : formatUsd(summary.avgAiCostPerConversationUsd, 4)}
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {summary.totalAiCostUsd === null
+                  ? 'AI spend unavailable'
+                  : `${formatUsd(summary.totalAiCostUsd, 4)} total AI spend`}
               </p>
             </CardContent>
           </Card>
