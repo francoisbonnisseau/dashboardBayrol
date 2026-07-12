@@ -30,6 +30,10 @@ function snapshot(overrides: Partial<ModeSnapshot> = {}): ModeSnapshot {
     selectedProviderB: 'anthropic',
     selectedModelA: 'openai:gpt-4o-mini',
     selectedModelB: 'anthropic:claude-3-haiku',
+    selectedCheapProvider: 'openai',
+    selectedCheapModel: 'openai:gpt-4o-mini',
+    cheapTemperature: 0.2,
+    cheapReasoningEffort: 'high',
     selectedPromptKey: 'testing',
     turns: [turn('existing-turn')],
     singleHistory: [

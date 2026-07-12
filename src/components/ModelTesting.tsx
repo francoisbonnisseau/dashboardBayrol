@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Bot, ChevronLeft, ChevronRight, Loader2, Plus, Save, Send, User } from 'lucide-react';
+import { AlertCircle, Bot, ChevronLeft, ChevronRight, Loader2, Plus, Save, Send, Settings2, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useBotpressClient } from '@/hooks/useBotpressClient';
@@ -44,7 +44,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -56,6 +56,20 @@ const ALLOWED_PROMPT_BOTS = new Set(['fr', 'de', 'es']);
 const DEFAULT_TEMPERATURE = 0.3;
 const DEFAULT_MAX_TOKENS = 1200;
 const MODEL_TESTING_STORAGE_KEY = 'model-testing-config-v4';
+
+type TestSettingsDraft = {
+  selectedProviderA: string;
+  selectedProviderB: string;
+  selectedModelA: string;
+  selectedModelB: string;
+  selectedCheapProvider: string;
+  selectedCheapModel: string;
+  thinking: ThinkingOption;
+  temperature: number;
+  cheapReasoningEffort: ThinkingOption;
+  cheapTemperature: number;
+  selectedPromptKey: string;
+};
 
 function getProviderLabel(provider: string) {
   switch (provider) {
@@ -156,6 +170,10 @@ function readSavedBotState(botId: string): SavedBotState | null {
           selectedProviderB: typeof configRecord.selectedProviderB === 'string' ? configRecord.selectedProviderB : '',
           selectedModelA: typeof configRecord.selectedModelA === 'string' ? configRecord.selectedModelA : '',
           selectedModelB: typeof configRecord.selectedModelB === 'string' ? configRecord.selectedModelB : '',
+          selectedCheapProvider: typeof configRecord.selectedCheapProvider === 'string' ? configRecord.selectedCheapProvider : '',
+          selectedCheapModel: typeof configRecord.selectedCheapModel === 'string' ? configRecord.selectedCheapModel : '',
+          cheapTemperature: typeof configRecord.cheapTemperature === 'number' ? configRecord.cheapTemperature : DEFAULT_TEMPERATURE,
+          cheapReasoningEffort: isThinkingOption(configRecord.cheapReasoningEffort) ? configRecord.cheapReasoningEffort : 'high',
           selectedPromptKey: typeof configRecord.selectedPromptKey === 'string' ? configRecord.selectedPromptKey : '',
           turns: [],
           singleHistory: [],
@@ -180,6 +198,10 @@ function readSavedBotState(botId: string): SavedBotState | null {
       selectedProviderB: typeof snapshot.selectedProviderB === 'string' ? snapshot.selectedProviderB : '',
       selectedModelA: typeof snapshot.selectedModelA === 'string' ? snapshot.selectedModelA : '',
       selectedModelB: typeof snapshot.selectedModelB === 'string' ? snapshot.selectedModelB : '',
+      selectedCheapProvider: typeof snapshot.selectedCheapProvider === 'string' ? snapshot.selectedCheapProvider : '',
+      selectedCheapModel: typeof snapshot.selectedCheapModel === 'string' ? snapshot.selectedCheapModel : '',
+      cheapTemperature: typeof snapshot.cheapTemperature === 'number' ? snapshot.cheapTemperature : DEFAULT_TEMPERATURE,
+      cheapReasoningEffort: isThinkingOption(snapshot.cheapReasoningEffort) ? snapshot.cheapReasoningEffort : 'high',
       selectedPromptKey: typeof snapshot.selectedPromptKey === 'string' ? snapshot.selectedPromptKey : '',
       turns: Array.isArray(snapshot.turns) ? snapshot.turns : [],
       singleHistory: Array.isArray(snapshot.singleHistory) ? snapshot.singleHistory : [],
@@ -503,24 +525,34 @@ export default function ModelTesting() {
   const [selectedProviderB, setSelectedProviderB] = useState('');
   const [selectedModelA, setSelectedModelA] = useState('');
   const [selectedModelB, setSelectedModelB] = useState('');
+  const [selectedCheapProvider, setSelectedCheapProvider] = useState('');
+  const [selectedCheapModel, setSelectedCheapModel] = useState('');
   const [comparisonEnabled, setComparisonEnabled] = useState(true);
   const [thinking, setThinking] = useState<ThinkingOption>('medium');
   const [staticThinking, setStaticThinking] = useState<StaticThinkingOption>('medium');
   const [temperature, setTemperature] = useState<number>(DEFAULT_TEMPERATURE);
+  const [cheapTemperature, setCheapTemperature] = useState<number>(DEFAULT_TEMPERATURE);
+  const [cheapReasoningEffort, setCheapReasoningEffort] = useState<ThinkingOption>('high');
 
   const [promptRows, setPromptRows] = useState<PromptRow[]>([]);
   const [selectedPromptKey, setSelectedPromptKey] = useState('');
 
   const [configSaved, setConfigSaved] = useState(true);
+  const [testSettingsOpen, setTestSettingsOpen] = useState(false);
+  const [testSettingsDraft, setTestSettingsDraft] = useState<TestSettingsDraft | null>(null);
   const configBootedRef = useRef(false);
   const restoringConfigRef = useRef(false);
   const modelSelectionResetRef = useRef(false);
 
   const [pushDialogOpen, setPushDialogOpen] = useState(false);
   const [pushModelId, setPushModelId] = useState('');
+  const [pushCheapModelId, setPushCheapModelId] = useState('');
   const [pushTemperature, setPushTemperature] = useState(String(DEFAULT_TEMPERATURE));
   const [pushReasoningEffort, setPushReasoningEffort] = useState<ThinkingOption>('medium');
-  const [liveAiModelConfig, setLiveAiModelConfig] = useState<AiModelConfigRow | null>(null);
+  const [pushCheapTemperature, setPushCheapTemperature] = useState(String(DEFAULT_TEMPERATURE));
+  const [pushCheapReasoningEffort, setPushCheapReasoningEffort] = useState<ThinkingOption>('high');
+  const [liveStrongModelConfig, setLiveStrongModelConfig] = useState<AiModelConfigRow | null>(null);
+  const [liveCheapModelConfig, setLiveCheapModelConfig] = useState<AiModelConfigRow | null>(null);
   const [pushConfigLoading, setPushConfigLoading] = useState(false);
   const [pushConfigSaving, setPushConfigSaving] = useState(false);
   const [settingsCollapsed, setSettingsCollapsed] = useState(false);
@@ -532,6 +564,7 @@ export default function ModelTesting() {
   const [compareHistory, setCompareHistory] = useState<PerModelHistory>({ modelA: [], modelB: [] });
   const [running, setRunning] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousModelSelectionRef = useRef<{ modelA: string; modelB: string } | null>(null);
 
   const client = useBotpressClient(selectedBotId);
@@ -582,6 +615,10 @@ export default function ModelTesting() {
     () => models.filter((model) => getProviderFromModelId(model.id) === selectedProviderB),
     [models, selectedProviderB]
   );
+  const modelsForCheapProvider = useMemo(
+    () => models.filter((model) => getProviderFromModelId(model.id) === selectedCheapProvider),
+    [models, selectedCheapProvider]
+  );
   const selectedModelAData = useMemo(
     () => models.find((model) => model.id === selectedModelA) ?? null,
     [models, selectedModelA]
@@ -594,6 +631,33 @@ export default function ModelTesting() {
     () => promptBots.find((bot) => bot.botId === selectedBotId) ?? null,
     [promptBots, selectedBotId]
   );
+  const draftModelsForProviderA = useMemo(
+    () => models.filter((model) => getProviderFromModelId(model.id) === testSettingsDraft?.selectedProviderA),
+    [models, testSettingsDraft?.selectedProviderA]
+  );
+  const draftModelsForProviderB = useMemo(
+    () => models.filter((model) => getProviderFromModelId(model.id) === testSettingsDraft?.selectedProviderB),
+    [models, testSettingsDraft?.selectedProviderB]
+  );
+  const draftDecisionModels = useMemo(
+    () => models.filter((model) => getProviderFromModelId(model.id) === testSettingsDraft?.selectedCheapProvider),
+    [models, testSettingsDraft?.selectedCheapProvider]
+  );
+  const draftPrompt = useMemo(
+    () => getPromptBySelectionKey(prompts, testSettingsDraft?.selectedPromptKey ?? null),
+    [prompts, testSettingsDraft?.selectedPromptKey]
+  );
+  const canApplyTestSettings = Boolean(
+    testSettingsDraft?.selectedProviderA &&
+      testSettingsDraft.selectedModelA &&
+      testSettingsDraft.selectedCheapProvider &&
+      testSettingsDraft.selectedCheapModel &&
+      testSettingsDraft.selectedPromptKey &&
+      (!comparisonEnabled ||
+        (testSettingsDraft.selectedProviderB &&
+          testSettingsDraft.selectedModelB &&
+          testSettingsDraft.selectedModelA !== testSettingsDraft.selectedModelB))
+  );
   const currentMode = comparisonEnabled ? 'compare' : 'single';
 
   function buildModeSnapshot(): ModeSnapshot {
@@ -605,6 +669,10 @@ export default function ModelTesting() {
       selectedProviderB,
       selectedModelA,
       selectedModelB,
+      selectedCheapProvider,
+      selectedCheapModel,
+      cheapTemperature,
+      cheapReasoningEffort,
       selectedPromptKey,
       turns,
       singleHistory,
@@ -632,6 +700,10 @@ export default function ModelTesting() {
     setSelectedProviderB(snapshot?.selectedProviderB ?? fallbackProviderB);
     setSelectedModelA(snapshot?.selectedModelA ?? fallbackModelA);
     setSelectedModelB(snapshot?.selectedModelB ?? fallbackModelB);
+    setSelectedCheapProvider(snapshot?.selectedCheapProvider ?? selectedCheapProvider);
+    setSelectedCheapModel(snapshot?.selectedCheapModel ?? selectedCheapModel);
+    setCheapTemperature(snapshot?.cheapTemperature ?? cheapTemperature);
+    setCheapReasoningEffort(snapshot?.cheapReasoningEffort ?? cheapReasoningEffort);
     setSelectedPromptKey(snapshot?.selectedPromptKey ?? fallbackPromptKey);
     setTurns(snapshot?.turns ?? []);
     setSingleHistory(snapshot?.singleHistory ?? []);
@@ -691,6 +763,10 @@ export default function ModelTesting() {
       selectedProviderB,
       selectedModelA: nextModelA,
       selectedModelB: nextModelB,
+      selectedCheapProvider,
+      selectedCheapModel,
+      cheapTemperature,
+      cheapReasoningEffort,
       selectedPromptKey,
       turns: [],
       singleHistory: [],
@@ -839,6 +915,10 @@ export default function ModelTesting() {
       setSelectedProviderB('');
       setSelectedModelA('');
       setSelectedModelB('');
+      setSelectedCheapProvider('');
+      setSelectedCheapModel('');
+      setCheapTemperature(DEFAULT_TEMPERATURE);
+      setCheapReasoningEffort('high');
       setSelectedPromptKey('');
       setTurns([]);
       setSingleHistory([]);
@@ -872,7 +952,12 @@ export default function ModelTesting() {
       setSelectedModelB(fallback.id);
       setSelectedProviderB(getProviderFromModelId(fallback.id));
     }
-  }, [models, selectedModelA, selectedModelB]);
+    if (!selectedCheapModel || !models.some((model) => model.id === selectedCheapModel)) {
+      const cheap = models.find((model) => /mini|flash|lite/i.test(model.id)) ?? models[0];
+      setSelectedCheapModel(cheap.id);
+      setSelectedCheapProvider(getProviderFromModelId(cheap.id));
+    }
+  }, [models, selectedModelA, selectedModelB, selectedCheapModel]);
 
   useEffect(() => {
     if (!selectedBotId || !models.length || hydratedBotIdRef.current === selectedBotId) {
@@ -901,6 +986,14 @@ export default function ModelTesting() {
       setSelectedProviderB(getProviderFromModelId(selectedModelB));
     }
   }, [selectedProviderB, selectedModelB]);
+  useEffect(() => {
+    if (!selectedCheapProvider && selectedCheapModel) setSelectedCheapProvider(getProviderFromModelId(selectedCheapModel));
+  }, [selectedCheapProvider, selectedCheapModel]);
+  useEffect(() => {
+    if (selectedCheapProvider && modelsForCheapProvider.length && !modelsForCheapProvider.some((model) => model.id === selectedCheapModel)) {
+      setSelectedCheapModel(modelsForCheapProvider[0].id);
+    }
+  }, [modelsForCheapProvider, selectedCheapModel, selectedCheapProvider]);
 
   useEffect(() => {
     if (!selectedProviderA || !modelsForProviderA.length) {
@@ -935,6 +1028,7 @@ export default function ModelTesting() {
     const ready = Boolean(
       selectedProviderA &&
         selectedModelA &&
+        selectedCheapModel &&
         selectedPromptKey &&
         thinking &&
         (!comparisonEnabled || (selectedProviderB && selectedModelB))
@@ -981,6 +1075,10 @@ export default function ModelTesting() {
         selectedProviderB,
         selectedModelA,
         selectedModelB,
+        selectedCheapProvider,
+        selectedCheapModel,
+        cheapTemperature,
+        cheapReasoningEffort,
         selectedPromptKey,
         turns: [],
         singleHistory: [],
@@ -1013,6 +1111,10 @@ export default function ModelTesting() {
     selectedProviderB,
     selectedModelA,
     selectedModelB,
+    selectedCheapProvider,
+    selectedCheapModel,
+    cheapTemperature,
+    cheapReasoningEffort,
     selectedPromptKey,
     temperature,
     thinking,
@@ -1032,17 +1134,79 @@ export default function ModelTesting() {
     toast.success(`Configuration locale enregistree pour ${selectedBot?.name || 'ce bot'}`);
   }
 
+  function openTestSettings() {
+    setTestSettingsDraft({
+      selectedProviderA,
+      selectedProviderB,
+      selectedModelA,
+      selectedModelB,
+      selectedCheapProvider,
+      selectedCheapModel,
+      thinking,
+      temperature,
+      cheapReasoningEffort,
+      cheapTemperature,
+      selectedPromptKey,
+    });
+    setTestSettingsOpen(true);
+  }
+
+  function closeTestSettings() {
+    setTestSettingsOpen(false);
+    setTestSettingsDraft(null);
+    window.requestAnimationFrame(() => settingsButtonRef.current?.focus());
+  }
+
+  function applyTestSettings() {
+    if (!testSettingsDraft || !canApplyTestSettings) return;
+
+    const conversationMustReset =
+      selectedModelA !== testSettingsDraft.selectedModelA ||
+      selectedModelB !== testSettingsDraft.selectedModelB ||
+      selectedCheapModel !== testSettingsDraft.selectedCheapModel ||
+      selectedPromptKey !== testSettingsDraft.selectedPromptKey;
+
+    setSelectedProviderA(testSettingsDraft.selectedProviderA);
+    setSelectedProviderB(testSettingsDraft.selectedProviderB);
+    setSelectedModelA(testSettingsDraft.selectedModelA);
+    setSelectedModelB(testSettingsDraft.selectedModelB);
+    setSelectedCheapProvider(testSettingsDraft.selectedCheapProvider);
+    setSelectedCheapModel(testSettingsDraft.selectedCheapModel);
+    setThinking(testSettingsDraft.thinking);
+    if (testSettingsDraft.thinking !== 'none' && testSettingsDraft.thinking !== 'dynamic') {
+      setStaticThinking(testSettingsDraft.thinking);
+    }
+    setTemperature(testSettingsDraft.temperature);
+    setCheapReasoningEffort(testSettingsDraft.cheapReasoningEffort);
+    setCheapTemperature(testSettingsDraft.cheapTemperature);
+    setSelectedPromptKey(testSettingsDraft.selectedPromptKey);
+    setConfigSaved(false);
+
+    if (conversationMustReset) {
+      setTurns([]);
+      setSingleHistory([]);
+      setCompareHistory({ modelA: [], modelB: [] });
+      setUserMessage('');
+    }
+
+    closeTestSettings();
+  }
+
   function openPushDialog() {
     setPushModelId(selectedModelA);
+    setPushCheapModelId(selectedCheapModel);
     setPushTemperature(clampPushTemperature(temperature).toString());
     setPushReasoningEffort(thinking);
+    setPushCheapTemperature(clampPushTemperature(cheapTemperature).toString());
+    setPushCheapReasoningEffort(cheapReasoningEffort);
     setPushDialogOpen(true);
     void loadLiveAiModelConfig();
   }
 
   async function loadLiveAiModelConfig() {
     if (!client) {
-      setLiveAiModelConfig(null);
+      setLiveStrongModelConfig(null);
+      setLiveCheapModelConfig(null);
       return;
     }
 
@@ -1050,16 +1214,32 @@ export default function ModelTesting() {
     try {
       const response = await client.findTableRows({
         table: AI_MODEL_TABLE_NAME,
-        limit: 1,
+        limit: 10,
       });
-      const row = response.rows[0] ? normalizeAiModelConfigRow(response.rows[0] as Record<string, unknown>) : null;
-      setLiveAiModelConfig(row);
-      if (!row) {
-        toast.error('Aucune ligne trouvee dans AIModelTable');
+      const rows = response.rows
+        .map((row: Record<string, unknown>) => normalizeAiModelConfigRow(row))
+        .filter((row): row is AiModelConfigRow => Boolean(row));
+      const strongRow = rows.find((row) => row.modelType === 'strong') ?? null;
+      const cheapRow = rows.find((row) => row.modelType === 'cheap') ?? null;
+      setLiveStrongModelConfig(strongRow);
+      setLiveCheapModelConfig(cheapRow);
+      if (strongRow) {
+        setPushModelId(strongRow.model);
+        setPushTemperature(clampPushTemperature(strongRow.temperature).toString());
+        setPushReasoningEffort(strongRow.reasoningEffort);
+      }
+      if (cheapRow) {
+        setPushCheapModelId(cheapRow.model);
+        setPushCheapTemperature(clampPushTemperature(cheapRow.temperature).toString());
+        setPushCheapReasoningEffort(cheapRow.reasoningEffort);
+      }
+      if (!strongRow || !cheapRow) {
+        toast.error('AIModelTable doit contenir une ligne strong et une ligne cheap');
       }
     } catch (error) {
       console.error('Error loading AI model config:', error);
-      setLiveAiModelConfig(null);
+      setLiveStrongModelConfig(null);
+      setLiveCheapModelConfig(null);
       toast.error('Impossible de charger AIModelTable');
     } finally {
       setPushConfigLoading(false);
@@ -1076,33 +1256,53 @@ export default function ModelTesting() {
       toast.error('Selectionnez un modele');
       return;
     }
+    if (!pushCheapModelId) {
+      toast.error('Selectionnez un modele cheap');
+      return;
+    }
 
     const nextTemperature = Number(pushTemperature);
+    const nextCheapTemperature = Number(pushCheapTemperature);
     if (!Number.isFinite(nextTemperature) || nextTemperature < 0 || nextTemperature > 1) {
       toast.error('La temperature doit etre comprise entre 0 et 1');
       return;
     }
-
-    if (!liveAiModelConfig) {
-      toast.error('Aucune ligne AIModelTable a mettre a jour');
+    if (!Number.isFinite(nextCheapTemperature) || nextCheapTemperature < 0 || nextCheapTemperature > 1) {
+      toast.error('La temperature du modele de decision doit etre comprise entre 0 et 1');
       return;
     }
 
-    const payload = buildPushLivePayload({
+    if (!liveStrongModelConfig || !liveCheapModelConfig) {
+      toast.error('Les lignes strong et cheap sont requises dans AIModelTable');
+      return;
+    }
+
+    const strongPayload = buildPushLivePayload({
+      modelType: 'strong',
       modelId: pushModelId,
       temperature: nextTemperature,
       reasoningEffort: pushReasoningEffort,
+    });
+    const cheapPayload = buildPushLivePayload({
+      modelType: 'cheap',
+      modelId: pushCheapModelId,
+      temperature: nextCheapTemperature,
+      reasoningEffort: pushCheapReasoningEffort,
     });
 
     setPushConfigSaving(true);
     try {
       await client.updateTableRows({
         table: AI_MODEL_TABLE_NAME,
-        rows: [buildAiModelTableUpdateRow(liveAiModelConfig, payload)],
+        rows: [
+          buildAiModelTableUpdateRow(liveStrongModelConfig, strongPayload),
+          buildAiModelTableUpdateRow(liveCheapModelConfig, cheapPayload),
+        ],
       });
       toast.success('Configuration IA live mise a jour');
       setPushDialogOpen(false);
-      setLiveAiModelConfig(buildAiModelTableUpdateRow(liveAiModelConfig, payload));
+      setLiveStrongModelConfig(buildAiModelTableUpdateRow(liveStrongModelConfig, strongPayload));
+      setLiveCheapModelConfig(buildAiModelTableUpdateRow(liveCheapModelConfig, cheapPayload));
     } catch (error) {
       console.error('Error updating AI model config:', error);
       toast.error('Impossible de mettre a jour AIModelTable');
@@ -1155,6 +1355,9 @@ export default function ModelTesting() {
       token: settings.token,
       botId: selectedBotId,
       modelId: selectedModelA,
+      cheapModelId: selectedCheapModel,
+      cheapTemperature,
+      cheapReasoningEffort,
       rawSystemPrompt: selectedPrompt?.prompt ?? '',
       message,
       turns,
@@ -1195,6 +1398,9 @@ export default function ModelTesting() {
       botId: selectedBotId,
       modelAId: selectedModelA,
       modelBId: selectedModelB,
+      cheapModelId: selectedCheapModel,
+      cheapTemperature,
+      cheapReasoningEffort,
       rawSystemPrompt: selectedPrompt?.prompt ?? '',
       message,
       turns,
@@ -1317,21 +1523,21 @@ export default function ModelTesting() {
   return (
     <div className="mx-auto w-full max-w-[1480px] space-y-4">
       <section className="space-y-4 px-1">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-1.5">
-            <h1 className="text-[2.15rem] font-semibold tracking-[-0.045em] text-foreground">Model Testing</h1>
-            <p className="text-[15px] text-muted-foreground">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-[220px] shrink-0 space-y-1.5">
+            <h1 className="whitespace-nowrap text-[2.15rem] font-semibold tracking-[-0.045em] text-foreground">Model Testing</h1>
+            <p className="max-w-[260px] text-[15px] text-muted-foreground">
               Test system prompts across models and compare outputs.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2">
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:flex-1">
+            <div className="flex shrink-0 items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2">
               <span className="text-sm font-medium text-slate-700">Comparison</span>
               <Toggle checked={comparisonEnabled} onToggle={handleComparisonToggle} />
             </div>
 
-            <div className="flex items-center gap-3 pt-1">
+            <div className="flex shrink-0 items-center gap-3 pt-1">
               <span className="text-sm font-medium text-muted-foreground">Bot:</span>
               <Select value={selectedBotId} onValueChange={setSelectedBotId}>
                 <SelectTrigger className="h-9 w-[180px]">
@@ -1347,7 +1553,16 @@ export default function ModelTesting() {
               </Select>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                ref={settingsButtonRef}
+                variant="outline"
+                className="h-10 rounded-lg border-slate-200 bg-white text-sm"
+                onClick={openTestSettings}
+              >
+                <Settings2 className="size-4" />
+                Test settings
+              </Button>
               <Button
                 variant="outline"
                 className="h-10 rounded-lg border-slate-200 bg-white text-sm"
@@ -1365,14 +1580,9 @@ export default function ModelTesting() {
       </section>
 
       <section
-        className={cn(
-          'grid min-h-0 items-stretch gap-4 px-1',
-          settingsCollapsed
-            ? 'lg:grid-cols-[68px_minmax(0,1fr)]'
-            : 'lg:grid-cols-[320px_minmax(0,1fr)]'
-        )}
+        className="min-h-0 px-1"
       >
-        <div className="min-w-0">
+        <div className="hidden" aria-hidden="true">
           <Card
             className={cn(
               'border-slate-200 shadow-sm',
@@ -1468,6 +1678,43 @@ export default function ModelTesting() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3">
+                <div className="space-y-2">
+                  <Label htmlFor="provider-cheap">Decision provider</Label>
+                  <Select value={selectedCheapProvider} onValueChange={setSelectedCheapProvider} disabled={modelsLoading}>
+                    <SelectTrigger id="provider-cheap"><SelectValue placeholder="Provider" /></SelectTrigger>
+                    <SelectContent>
+                      {providers.map((provider) => <SelectItem key={provider} value={provider}>{getProviderLabel(provider)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="model-cheap">Decision model</Label>
+                  <Select value={selectedCheapModel} onValueChange={setSelectedCheapModel} disabled={modelsLoading}>
+                    <SelectTrigger id="model-cheap"><SelectValue placeholder="Choisir un modele de decision" /></SelectTrigger>
+                    <SelectContent>
+                      {modelsForCheapProvider.map((model) => <SelectItem key={model.id} value={model.id}>{getPrettyModelName(model)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3">
+                <div className="space-y-2">
+                  <Label htmlFor="decision-thinking">Decision thinking</Label>
+                  <Select value={cheapReasoningEffort} onValueChange={(value) => setCheapReasoningEffort(value as ThinkingOption)}>
+                    <SelectTrigger id="decision-thinking"><SelectValue /></SelectTrigger>
+                    <SelectContent>{THINKING_OPTIONS.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="decision-temperature">Decision temperature ({cheapTemperature.toFixed(1)})</Label>
+                  <input id="decision-temperature" type="range" min={0} max={1} step={0.1} value={cheapTemperature}
+                    onChange={(event) => setCheapTemperature(Number(event.target.value))}
+                    className="mt-3 h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600" />
+                </div>
+              </div>
+
               {comparisonEnabled && (
                 <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3">
                   <div className="space-y-2">
@@ -1509,7 +1756,7 @@ export default function ModelTesting() {
               )}
 
               <div className="space-y-2">
-                <Label>Thinking</Label>
+                <Label>Response thinking</Label>
                 <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm text-slate-700">Enable thinking</span>
@@ -1557,7 +1804,7 @@ export default function ModelTesting() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="sidebar-temperature">Temperature</Label>
+                <Label htmlFor="sidebar-temperature">Response temperature</Label>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
                   <div className="mb-2 flex items-center justify-between text-sm">
                     <span className="text-slate-600">Precision</span>
@@ -1664,11 +1911,34 @@ export default function ModelTesting() {
                       : 'Single-model test conversation for the selected configuration.'}
                   </p>
                 </div>
-                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
-                  {selectedPrompt?.label || 'No prompt selected'}
-                </Badge>
               </div>
-              <div className="mt-3">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
+                  <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                    A: {getPrettyModelName(selectedModelAData)}
+                  </Badge>
+                  {comparisonEnabled && (
+                    <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
+                      B: {getPrettyModelName(selectedModelBData)}
+                    </Badge>
+                  )}
+                  <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+                    Decision: {getPrettyModelName(models.find((model) => model.id === selectedCheapModel))}
+                  </Badge>
+                  <Badge variant="outline" className="max-w-[260px] truncate border-slate-200 bg-white text-slate-600">
+                    Prompt: {selectedPrompt?.label || 'Not selected'}
+                  </Badge>
+                  <Badge
+                    className={cn(
+                      'border',
+                      configSaved
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : 'border-amber-200 bg-amber-50 text-amber-700'
+                    )}
+                  >
+                    {configSaved ? 'Saved' : 'Unsaved'}
+                  </Badge>
+                </div>
                 <Button
                   type="button"
                   variant="outline"
@@ -1778,6 +2048,173 @@ export default function ModelTesting() {
         </div>
       </section>
 
+      <Dialog open={testSettingsOpen} onOpenChange={(open) => (open ? setTestSettingsOpen(true) : closeTestSettings())}>
+        <DialogContent
+          className="grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-[1100px] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 p-0 sm:max-w-[1100px]"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            document.getElementById('test-settings-provider-a')?.focus();
+          }}
+        >
+          <DialogHeader className="border-b border-slate-200 px-5 py-5 pr-14 sm:px-6">
+            <DialogTitle>Test settings</DialogTitle>
+            <DialogDescription>
+              Configure the response and decision models used for this test session.
+            </DialogDescription>
+          </DialogHeader>
+
+          {testSettingsDraft && (
+            <div className="min-h-0 overflow-y-auto px-5 py-5 sm:px-6">
+              {modelsError && (
+                <Alert className="mb-5 border-rose-200 bg-rose-50 text-rose-900">
+                  <AlertCircle className="size-4" />
+                  <AlertTitle>Unable to load models</AlertTitle>
+                  <AlertDescription>{modelsError}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="grid gap-5 lg:grid-cols-2">
+                <section className="space-y-5 rounded-xl border border-slate-200 p-4 sm:p-5">
+                  <div>
+                    <h3 className="font-semibold text-slate-950">Response models</h3>
+                    <p className="mt-1 text-sm text-slate-500">Models that compose the final response.</p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
+                    <div className="space-y-2">
+                      <Label htmlFor="test-settings-provider-a">Provider A</Label>
+                      <Select
+                        value={testSettingsDraft.selectedProviderA}
+                        onValueChange={(provider) => {
+                          const firstModel = models.find((model) => getProviderFromModelId(model.id) === provider);
+                          setTestSettingsDraft((draft) => draft ? { ...draft, selectedProviderA: provider, selectedModelA: firstModel?.id ?? '' } : draft);
+                        }}
+                      >
+                        <SelectTrigger id="test-settings-provider-a"><SelectValue placeholder="Provider" /></SelectTrigger>
+                        <SelectContent>{providers.map((provider) => <SelectItem key={provider} value={provider}>{getProviderLabel(provider)}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="test-settings-model-a">Model A</Label>
+                      <Select value={testSettingsDraft.selectedModelA} onValueChange={(model) => setTestSettingsDraft((draft) => draft ? { ...draft, selectedModelA: model } : draft)}>
+                        <SelectTrigger id="test-settings-model-a"><SelectValue placeholder="Select model A" /></SelectTrigger>
+                        <SelectContent>{draftModelsForProviderA.map((model) => <SelectItem key={model.id} value={model.id}>{getPrettyModelName(model)}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {comparisonEnabled && (
+                    <div className="grid gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
+                      <div className="space-y-2">
+                        <Label htmlFor="test-settings-provider-b">Provider B</Label>
+                        <Select
+                          value={testSettingsDraft.selectedProviderB}
+                          onValueChange={(provider) => {
+                            const firstModel = models.find((model) => getProviderFromModelId(model.id) === provider);
+                            setTestSettingsDraft((draft) => draft ? { ...draft, selectedProviderB: provider, selectedModelB: firstModel?.id ?? '' } : draft);
+                          }}
+                        >
+                          <SelectTrigger id="test-settings-provider-b"><SelectValue placeholder="Provider" /></SelectTrigger>
+                          <SelectContent>{providers.map((provider) => <SelectItem key={provider} value={provider}>{getProviderLabel(provider)}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="test-settings-model-b">Model B</Label>
+                        <Select value={testSettingsDraft.selectedModelB} onValueChange={(model) => setTestSettingsDraft((draft) => draft ? { ...draft, selectedModelB: model } : draft)}>
+                          <SelectTrigger id="test-settings-model-b"><SelectValue placeholder="Select model B" /></SelectTrigger>
+                          <SelectContent>{draftModelsForProviderB.map((model) => <SelectItem key={model.id} value={model.id}>{getPrettyModelName(model)}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="test-settings-response-thinking">Reasoning effort</Label>
+                      <Select value={testSettingsDraft.thinking} onValueChange={(value) => setTestSettingsDraft((draft) => draft ? { ...draft, thinking: value as ThinkingOption } : draft)}>
+                        <SelectTrigger id="test-settings-response-thinking"><SelectValue /></SelectTrigger>
+                        <SelectContent>{THINKING_OPTIONS.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-3">
+                      <Label htmlFor="test-settings-response-temperature">Temperature <span className="font-normal text-slate-500">{testSettingsDraft.temperature.toFixed(1)}</span></Label>
+                      <input id="test-settings-response-temperature" type="range" min={0} max={1} step={0.1} value={testSettingsDraft.temperature} onChange={(event) => setTestSettingsDraft((draft) => draft ? { ...draft, temperature: Number(event.target.value) } : draft)} className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600" />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-5 rounded-xl border border-slate-200 p-4 sm:p-5">
+                  <div>
+                    <h3 className="font-semibold text-slate-950">Decision model</h3>
+                    <p className="mt-1 text-sm text-slate-500">Model used for routing and tool decisions.</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
+                    <div className="space-y-2">
+                      <Label htmlFor="test-settings-decision-provider">Provider</Label>
+                      <Select
+                        value={testSettingsDraft.selectedCheapProvider}
+                        onValueChange={(provider) => {
+                          const firstModel = models.find((model) => getProviderFromModelId(model.id) === provider);
+                          setTestSettingsDraft((draft) => draft ? { ...draft, selectedCheapProvider: provider, selectedCheapModel: firstModel?.id ?? '' } : draft);
+                        }}
+                      >
+                        <SelectTrigger id="test-settings-decision-provider"><SelectValue placeholder="Provider" /></SelectTrigger>
+                        <SelectContent>{providers.map((provider) => <SelectItem key={provider} value={provider}>{getProviderLabel(provider)}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="test-settings-decision-model">Model</Label>
+                      <Select value={testSettingsDraft.selectedCheapModel} onValueChange={(model) => setTestSettingsDraft((draft) => draft ? { ...draft, selectedCheapModel: model } : draft)}>
+                        <SelectTrigger id="test-settings-decision-model"><SelectValue placeholder="Select decision model" /></SelectTrigger>
+                        <SelectContent>{draftDecisionModels.map((model) => <SelectItem key={model.id} value={model.id}>{getPrettyModelName(model)}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="test-settings-decision-thinking">Reasoning effort</Label>
+                      <Select value={testSettingsDraft.cheapReasoningEffort} onValueChange={(value) => setTestSettingsDraft((draft) => draft ? { ...draft, cheapReasoningEffort: value as ThinkingOption } : draft)}>
+                        <SelectTrigger id="test-settings-decision-thinking"><SelectValue /></SelectTrigger>
+                        <SelectContent>{THINKING_OPTIONS.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-3">
+                      <Label htmlFor="test-settings-decision-temperature">Temperature <span className="font-normal text-slate-500">{testSettingsDraft.cheapTemperature.toFixed(1)}</span></Label>
+                      <input id="test-settings-decision-temperature" type="range" min={0} max={1} step={0.1} value={testSettingsDraft.cheapTemperature} onChange={(event) => setTestSettingsDraft((draft) => draft ? { ...draft, cheapTemperature: Number(event.target.value) } : draft)} className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600" />
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <section className="mt-5 space-y-4 rounded-xl border border-slate-200 p-4 sm:p-5">
+                <div>
+                  <h3 className="font-semibold text-slate-950">Prompt</h3>
+                  <p className="mt-1 text-sm text-slate-500">Choose the system prompt used by both response models.</p>
+                </div>
+                <Select value={testSettingsDraft.selectedPromptKey} onValueChange={(key) => setTestSettingsDraft((draft) => draft ? { ...draft, selectedPromptKey: key } : draft)}>
+                  <SelectTrigger id="test-settings-prompt"><SelectValue placeholder="Select a prompt" /></SelectTrigger>
+                  <SelectContent>{promptOptions.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent>
+                </Select>
+                {draftPrompt ? (
+                  <div className="rounded-lg bg-slate-50 p-4">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="bg-white">{draftPrompt.version}</Badge>
+                      <span className="truncate text-sm font-medium text-slate-700">{draftPrompt.label || 'Untitled prompt'}</span>
+                    </div>
+                    <p className="mt-3 max-h-36 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-slate-600">{draftPrompt.prompt || 'Empty prompt.'}</p>
+                  </div>
+                ) : null}
+              </section>
+            </div>
+          )}
+
+          <DialogFooter className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+            <Button variant="outline" onClick={closeTestSettings}>Cancel</Button>
+            <Button className="bg-blue-600 text-white hover:bg-blue-700" disabled={!canApplyTestSettings || modelsLoading} onClick={applyTestSettings}>Apply</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={pushDialogOpen} onOpenChange={setPushDialogOpen}>
         <DialogContent className="sm:max-w-[440px]">
           <DialogHeader>
@@ -1787,9 +2224,9 @@ export default function ModelTesting() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label className="flex flex-wrap items-center gap-2" htmlFor="push-model">
-                Model
+                Response model
                 <Badge variant="outline" className="max-w-full truncate border-slate-200 bg-slate-50 text-slate-500">
-                  Current: {pushConfigLoading ? 'loading' : liveAiModelConfig?.model || '-'}
+                  Current: {pushConfigLoading ? 'loading' : liveStrongModelConfig?.model || '-'}
                 </Badge>
               </Label>
               <Select value={pushModelId} onValueChange={setPushModelId}>
@@ -1807,10 +2244,55 @@ export default function ModelTesting() {
             </div>
 
             <div className="space-y-2">
-              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-temperature">
-                Temperature
+              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-cheap-model">
+                Decision model
+                <Badge variant="outline" className="max-w-full truncate border-slate-200 bg-slate-50 text-slate-500">
+                  Current: {pushConfigLoading ? 'loading' : liveCheapModelConfig?.model || '-'}
+                </Badge>
+              </Label>
+              <Select value={pushCheapModelId} onValueChange={setPushCheapModelId}>
+                <SelectTrigger id="push-cheap-model"><SelectValue placeholder="Choisir un modele de decision" /></SelectTrigger>
+                <SelectContent>
+                  {models.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {getProviderLabel(getProviderFromModelId(model.id))} - {getPrettyModelName(model)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-decision-temperature">
+                Decision temperature
                 <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-500">
-                  Current: {pushConfigLoading ? 'loading' : liveAiModelConfig?.temperature.toFixed(1) ?? '-'}
+                  Current: {pushConfigLoading ? 'loading' : liveCheapModelConfig?.temperature.toFixed(1) ?? '-'}
+                </Badge>
+              </Label>
+              <input id="push-decision-temperature" type="range" min={0} max={1} step={0.1} value={pushCheapTemperature}
+                onChange={(event) => setPushCheapTemperature(event.target.value)}
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600" />
+              <div className="text-right text-sm font-medium">{(Number(pushCheapTemperature) || 0).toFixed(1)}</div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-decision-thinking">
+                Decision thinking
+                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-500">
+                  Current: {pushConfigLoading ? 'loading' : liveCheapModelConfig?.reasoningEffort || '-'}
+                </Badge>
+              </Label>
+              <Select value={pushCheapReasoningEffort} onValueChange={(value) => setPushCheapReasoningEffort(value as ThinkingOption)}>
+                <SelectTrigger id="push-decision-thinking"><SelectValue /></SelectTrigger>
+                <SelectContent>{THINKING_OPTIONS.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-temperature">
+                Response temperature
+                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-500">
+                  Current: {pushConfigLoading ? 'loading' : liveStrongModelConfig?.temperature.toFixed(1) ?? '-'}
                 </Badge>
               </Label>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
@@ -1839,9 +2321,9 @@ export default function ModelTesting() {
 
             <div className="space-y-2">
               <Label className="flex flex-wrap items-center gap-2" htmlFor="push-reasoning-effort">
-                Thinking
+                Response thinking
                 <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-500">
-                  Current: {pushConfigLoading ? 'loading' : liveAiModelConfig?.reasoningEffort || '-'}
+                  Current: {pushConfigLoading ? 'loading' : liveStrongModelConfig?.reasoningEffort || '-'}
                 </Badge>
               </Label>
               <Select value={pushReasoningEffort} onValueChange={(value) => setPushReasoningEffort(value as ThinkingOption)}>
@@ -1862,7 +2344,7 @@ export default function ModelTesting() {
           <DialogFooter>
             <Button
               className="bg-blue-600 text-white hover:bg-blue-700"
-              disabled={pushConfigLoading || pushConfigSaving || !liveAiModelConfig}
+              disabled={pushConfigLoading || pushConfigSaving || !liveStrongModelConfig || !liveCheapModelConfig}
               onClick={() => void handlePushToLive()}
             >
               {pushConfigSaving ? <Loader2 className="size-4 animate-spin" /> : null}

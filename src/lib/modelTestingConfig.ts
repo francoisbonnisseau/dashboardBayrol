@@ -15,6 +15,10 @@ export type ModeSnapshot = {
   selectedProviderB: string;
   selectedModelA: string;
   selectedModelB: string;
+  selectedCheapProvider: string;
+  selectedCheapModel: string;
+  cheapTemperature: number;
+  cheapReasoningEffort: ThinkingOption;
   selectedPromptKey: string;
   turns: ChatTurn[];
   singleHistory: LocalChatMessage[];
