@@ -34,6 +34,10 @@ export interface ModelResponseStep {
   text?: string;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
+  toolInput?: Record<string, unknown>;
+  toolOutput?: unknown;
+  toolDurationMs?: number;
+  toolSource?: 'direct' | 'prefetched';
   status?: 'pending' | 'completed' | 'failed';
   error?: string;
 }

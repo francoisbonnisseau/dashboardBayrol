@@ -795,12 +795,13 @@ async function runAgentForModel(
   });
 
   let cachedSearchPromise: Promise<RuntimeActionResult | null> | null = null;
+  let prefetchedSearchQuery: string | null = null;
   let cachedSearchUsed = false;
   const isGreeting = GREETING_REGEX.test(userMessage.trim());
 
   if (!isGreeting && !hasImage) {
-    const contextQuery = buildSearchKnowledgeContext(conversationHistory, userMessage);
-    cachedSearchPromise = callRuntimeAction(context.token, context.botId, 'searchKnowledge', { query: contextQuery }).catch(
+    prefetchedSearchQuery = buildSearchKnowledgeContext(conversationHistory, userMessage);
+    cachedSearchPromise = callRuntimeAction(context.token, context.botId, 'searchKnowledge', { query: prefetchedSearchQuery }).catch(
       () => null
     );
   }
@@ -937,11 +938,15 @@ async function runAgentForModel(
           finalInputForAction.query = `CONTEXTE ANALYSE IMAGE: ${lastAnalysisResult}\n\nQUERY UTILISATEUR: ${finalInputForAction.query}`;
         }
 
-        if (tool.name === 'searchKnowledge' && cachedSearchPromise && !cachedSearchUsed) {
+        if (tool.name === 'searchKnowledge' && cachedSearchPromise && prefetchedSearchQuery !== null && !cachedSearchUsed) {
+          toolStep.toolInput = { query: prefetchedSearchQuery };
+          toolStep.toolSource = 'prefetched';
           const cachedResult = await cachedSearchPromise;
           cachedSearchUsed = true;
 
           if (cachedResult && 'output' in cachedResult) {
+            toolStep.toolOutput = cachedResult.output;
+            toolStep.toolDurationMs = cachedResult.latencyMs;
             timingSegments.push({
               label: `Run tool ${tool.name} (prefetched)`,
               durationMs: cachedResult.latencyMs,
@@ -954,7 +959,11 @@ async function runAgentForModel(
             throw new Error('Invalid cached search result');
           }
         } else {
+          toolStep.toolInput = finalInputForAction;
+          toolStep.toolSource = 'direct';
           const actionResponse = await callRuntimeAction(context.token, context.botId, tool.name, finalInputForAction);
+          toolStep.toolOutput = actionResponse.output;
+          toolStep.toolDurationMs = actionResponse.latencyMs;
           timingSegments.push({
             label: `Run tool ${tool.name}`,
             durationMs: actionResponse.latencyMs,

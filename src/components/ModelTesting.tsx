@@ -337,7 +337,42 @@ function responseHasProgress(response: ModelResponse | undefined) {
   );
 }
 
+function formatToolJson(value: unknown) {
+  try {
+    return JSON.stringify(value, null, 2) ?? 'undefined';
+  } catch {
+    return String(value);
+  }
+}
+
+function getToolReadableOutput(step: ModelResponseStep) {
+  if (step.toolOutput === undefined) {
+    return null;
+  }
+
+  if (step.toolName === 'searchKnowledge' && isRecord(step.toolOutput)) {
+    if (typeof step.toolOutput.debugSummary === 'string' && step.toolOutput.debugSummary.trim()) {
+      return step.toolOutput.debugSummary;
+    }
+
+    if (typeof step.toolOutput.answer === 'string') {
+      return step.toolOutput.answer;
+    }
+  }
+
+  if (typeof step.toolOutput === 'string') {
+    return step.toolOutput;
+  }
+
+  return formatToolJson(step.toolOutput);
+}
+
 function ToolCallStep({ step }: { step: ModelResponseStep }) {
+  const readableOutput = getToolReadableOutput(step);
+  const hasOutput = step.toolOutput !== undefined;
+  const executedInput = step.toolInput ?? step.toolArgs ?? {};
+  const inputLabel = step.toolInput ? 'Executed input' : 'Requested input';
+
   return (
     <details className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
@@ -345,29 +380,63 @@ function ToolCallStep({ step }: { step: ModelResponseStep }) {
           <span className="text-sm font-medium text-slate-800">Tool call</span>
           <span className="ml-2 font-mono text-xs text-slate-500">{step.toolName}</span>
         </div>
-        <Badge
-          variant="outline"
-          className={cn(
-            'border-slate-200 bg-white text-slate-600',
-            step.status === 'pending' && 'border-blue-200 bg-blue-50 text-blue-700',
-            step.status === 'failed' && 'border-rose-200 bg-rose-50 text-rose-700'
-          )}
-        >
-          {step.status === 'pending' ? 'Running' : step.status === 'failed' ? 'Failed' : 'Done'}
-        </Badge>
+        <div className="flex shrink-0 items-center gap-2">
+          {typeof step.toolDurationMs === 'number' ? (
+            <span className="text-xs text-slate-500">{formatLatencyLabel(step.toolDurationMs)}</span>
+          ) : null}
+          {step.toolSource === 'prefetched' ? (
+            <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+              Prefetched
+            </Badge>
+          ) : null}
+          <Badge
+            variant="outline"
+            className={cn(
+              'border-slate-200 bg-white text-slate-600',
+              step.status === 'pending' && 'border-blue-200 bg-blue-50 text-blue-700',
+              step.status === 'completed' && 'border-emerald-200 bg-emerald-50 text-emerald-700',
+              step.status === 'failed' && 'border-rose-200 bg-rose-50 text-rose-700'
+            )}
+          >
+            {step.status === 'pending' ? 'Running' : step.status === 'failed' ? 'Failed' : 'Done'}
+          </Badge>
+        </div>
       </summary>
       <div className="mt-3 space-y-3">
+        <div>
+          <div className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-slate-500">{inputLabel}</div>
+          <pre className="max-h-44 overflow-auto rounded-md border border-slate-200 bg-white p-3 text-xs leading-6 text-slate-700">
+            {formatToolJson(executedInput)}
+          </pre>
+        </div>
+
         {step.error ? (
           <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-3 text-sm leading-6 text-rose-700">
             {step.error}
           </div>
         ) : null}
-        <div>
-          <div className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-slate-500">Inputs</div>
-          <pre className="overflow-x-auto rounded-md border border-slate-200 bg-white p-3 text-xs leading-6 text-slate-700">
-            {JSON.stringify(step.toolArgs || {}, null, 2)}
-          </pre>
-        </div>
+
+        {hasOutput ? (
+          <div>
+            <div className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-slate-500">Response</div>
+            <div className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-700">
+              {readableOutput || '[Empty response]'}
+            </div>
+
+            <details className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2">
+              <summary className="cursor-pointer text-xs font-medium uppercase tracking-[0.08em] text-slate-500">
+                Raw JSON
+              </summary>
+              <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words border-t border-slate-100 pt-2 text-xs leading-6 text-slate-700">
+                {formatToolJson(step.toolOutput)}
+              </pre>
+            </details>
+          </div>
+        ) : step.status === 'pending' ? (
+          <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-3 text-sm text-blue-700">
+            Waiting for the tool response…
+          </div>
+        ) : null}
       </div>
     </details>
   );
