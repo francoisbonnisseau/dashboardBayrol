@@ -1,54 +1,125 @@
-// Configuration complète du webchat custom
 window.initCustomWebchat({
-    clientId: "9f8071db-dd35-4cef-beb9-25610968c22b",
-    configuration: {
-        // === Identité du bot ===
-        botName: "Assistant Digital BAYROL",
-        botAvatar: "https://files.bpcontent.cloud/2025/07/03/08/20250703081111-XRZRAKW4.png", // URL de l'avatar du bot (optionnel)
-        botDescription: "Vous avez des questions générales sur l'entretien de la piscine ou sur les produits BAYROL ? Je suis là pour vous aider. Je peux aussi transmettre votre demande à notre service client BAYROL si vous souhaitez une aide plus personnalisée. J'utilise l’intelligence artificielle pour vous assister, mais il peut m'arriver de me tromper. Veillez toujours à suivre les instructions indiquées sur l’emballage du produit.",
+  clientId: "9f8071db-dd35-4cef-beb9-25610968c22b",
+  configuration: {
+    // Identité BAYROL
+    botName: "Assistant digital Bayrol",
+    botAvatar: "https://files.bpcontent.cloud/2025/07/03/08/20250703081111-XRZRAKW4.png",
+    botDescription: "Cet assistant utilise l’IA et peut se tromper. En l’utilisant, vous acceptez nos conditions d’utilisation.",
+    headerAvatarLink: "https://www.bayrol.fr",
 
-        // === Composer (zone de saisie) ===
-        composerPlaceholder: "Posez-moi votre question. Je suis prêt !",
-        allowFileUpload: true,
+    // Écran d’accueil
+    welcomeLogo: "https://files.bpcontent.cloud/2025/07/03/08/20250703081111-XRZRAKW4.png",
+    welcomeHeading: "Comment puis-je vous aider aujourd’hui ?",
+    welcomeDescription: "Cet assistant utilise l’IA et peut se tromper. En l’utilisant, vous acceptez nos [conditions d’utilisation](https://www.bayrol.fr/politique-de-confidentialite).",
+    welcomeInfoUrl: "https://www.bayrol.fr/politique-de-confidentialite",
+    conversationStarters: [
+      {
+        id: "chloration-choc",
+        title: "Comment faire une chloration choc",
+        icon: "message-circle"
+      },
+      {
+        id: "tac-debut-saison",
+        title: "Est-ce qu’il faut ajuster le TAC en début de saison",
+        icon: "message-circle"
+      },
+      {
+        id: "installer-automatic",
+        title: "Comment installer l’application de l’automatic",
+        icon: "message-circle"
+      }
+    ],
 
-        // === Thème ===
-        color: "#00a1b1",
-        variant: "soft", // "solid" ou "soft"
-        headerVariant: "glass", // "solid" ou "glass"
-        themeMode: "light", // "light" ou "dark"
-        fontFamily: "Roboto Condensed", // "rubik", "inter", "ibm", "fira"
-        radius: 1,
+    // Composer
+    composerPlaceholder: "Que cherchez-vous ...",
+    allowFileUpload: true,
+    // Bloque un nouvel envoi uniquement tant que Botpress n'a pas encore répondu.
+    disableSendButton: true,
+    // Place le haut de chaque nouveau message au début de la zone de lecture.
+    autoScrollToNewMessage: true,
+    themeToggleEnabled: true,
+    cameraCaptureEnabled: true,
+    voiceInputEnabled: true,
+    emojiPickerEnabled: false,
 
-        // === Footer ===
-        footer: "",
-        // === Liens dans le header ===
-        website: {},
-        email: {},
-        phone: {},
-        termsOfService: {},
-        privacyPolicy: {},
+    // Thème : passer à "dark" pour la variante sombre Figma
+    color: "#57929f",
+    variant: "soft",
+    headerVariant: "solid",
+    themeMode: "light",
+    persistThemeMode: true,
+    fontFamily: "Roboto Condensed",
+    radius: 1,
 
-        // === Fonctionnalités ===
-        feedbackEnabled: true,
-        soundEnabled: false,
+    // Navigation du header
+    fullscreenRedirectUrl: "https://www.bayrol.fr/assistant",
+    fullscreenRedirectTarget: "_blank",
+    mobileCloseRedirectUrl: "https://www.bayrol.fr",
 
-        // === Message de réflexion par défaut ===
-        // Affiché à la place du typing indicator quand le bot réfléchit
-        defaultThinkingMessage: "Réflexion...",
+    // Activité des outils : l’historique reste visible jusqu’au prochain message utilisateur
+    defaultThinkingMessage: "Réflexion...",
+    toolActivityIcons: {
+      searchKnowledge: {
+        icon: "book-open",
+        matchMessages: ["consulte les informations BAYROL", "base de connaissance"]
+      },
+      analyzeDocument: {
+        icon: "image",
+        matchMessages: ["analyse votre document", "analyse de l’image"]
+      },
+      webSearch: {
+        icon: "globe",
+        matchMessages: ["recherche web"]
+      },
+      findResellers: {
+        icon: "map",
+        matchMessages: ["cherche des revendeurs"]
+      },
+      calculatePoolVolume: {
+        icon: "calculator",
+        matchMessages: ["calcule le volume"]
+      },
+      sendEmail: {
+        icon: "mail",
+        matchMessages: ["transfère votre demande"]
+      }
+    },
 
-        // === Navigation header (optionnel) ===
-        headerAvatarLink: "https://www.bayrol.fr", // URL ouverte dans un nouvel onglet au clic sur l'avatar
-        mobileCloseRedirectUrl: "https://www.bayrol.fr", // URL de redirection au clic sur la croix (mobile uniquement)
+    feedbackEnabled: true,
+    soundEnabled: true,
+    footer: "",
+    sourcesHeading: "Pour aller plus loin :",
 
-        // === Message proactif (bulle automatique) ===
-        proactiveMessageEnabled: false,
-        proactiveBubbleMessage: "Hi! 👋 Comment puis-je vous aider ?",
-        proactiveBubbleTriggerType: "afterDelay", // "afterDelay", "onScroll", "never"
-        proactiveBubbleDelayTime: 5, // secondes avant affichage
+    labels: {
+      fullscreen: "Ouvrir l’assistant en plein écran",
+      soundOn: "Activer le son",
+      soundOff: "Désactiver le son",
+      newConversation: "Nouvelle conversation",
+      close: "Fermer le chat",
+      confirmNewConversationTitle: "Commencer une nouvelle conversation ?",
+      confirmNewConversationDescription: "La conversation actuelle restera disponible jusqu’au rechargement de la page.",
+      confirm: "Nouvelle conversation",
+      cancel: "Annuler",
+      feedbackTitle: "Aidez-nous à nous améliorer",
+      feedbackPlaceholder: "Dites-nous ce qui n’a pas fonctionné…",
+      feedbackConfirm: "Envoyer le feedback",
+      feedbackCancel: "Annuler",
+      feedbackPositive: "Réponse utile",
+      feedbackNegative: "Réponse à améliorer",
+      camera: "Prendre une photo",
+      microphoneStart: "Enregistrer un message vocal",
+      microphoneStop: "Arrêter l’enregistrement",
+      themeLight: "Activer le thème clair",
+      themeDark: "Activer le thème sombre"
+    },
 
-        // === Bouton flottant (FAB) ===
-        fabImage: "https://www.bayrol.fr/sites/bayrol/files/2025-07/Assistant-Bubble.png"
-    }
-});
+    // Message proactif
+    proactiveMessageEnabled: false,
+    proactiveBubbleMessage: "Bonjour ! Comment puis-je vous aider ?",
+    proactiveBubbleTriggerType: "afterDelay",
+    proactiveBubbleDelayTime: 5,
 
-
+    // Bouton flottant
+    fabImage: "https://www.bayrol.fr/sites/bayrol/files/2025-07/Assistant-Bubble.png"
+  }
+})
