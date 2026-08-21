@@ -1,55 +1,123 @@
-// Configuration complète du webchat custom - VERSION ESPAGNOL (ES)
 window.initCustomWebchat({
-    clientId: "a8557c16-495c-460f-9c15-0b9b565b96cf",
-    configuration: {
-        // === Identité du bot ===
-        botName: "Asistente Digital BAYROL",
-        botAvatar: "https://files.bpcontent.cloud/2025/05/22/08/20250522085831-DG5V39VT.png",
-        botDescription: "¿Tienes preguntas sobre el mantenimiento de tu piscina o sobre los productos BAYROL? Estoy aquí para ayudarte. Si lo deseas, también puedo enviar tu consulta a nuestro servicio de atención al cliente para una ayuda más personalizada.",
+  clientId: "a8557c16-495c-460f-9c15-0b9b565b96cf",
+  configuration: {
+    // Identidad BAYROL
+    botName: "Asistente Digital BAYROL",
+    botAvatar: "https://files.bpcontent.cloud/2025/05/22/08/20250522085831-DG5V39VT.png",
+    botDescription: "Este asistente utiliza IA y puede cometer errores. Al utilizarlo, acepta nuestra política de privacidad.",
+    headerAvatarLink: "https://www.bayrol.es",
 
-        // === Composer (zone de saisie) ===
-        composerPlaceholder: "¡Hola! ¿En qué puedo ayudarte?",
-        allowFileUpload: true,
+    // Pantalla de inicio
+    welcomeLogo: "https://files.bpcontent.cloud/2025/05/22/08/20250522085831-DG5V39VT.png",
+    welcomeHeading: "¿Cómo puedo ayudarle hoy?",
+    welcomeDescription: "Este asistente utiliza IA y puede cometer errores. Al utilizarlo, acepta nuestra [política de privacidad](https://www.bayrol.es/datos-privados).",
+    welcomeInfoUrl: "https://www.bayrol.es/datos-privados",
+    conversationStarters: [
+      {
+        id: "chloration-choc",
+        title: "¿Cómo realizo una cloración de choque?",
+        icon: "message-circle"
+      },
+      {
+        id: "tac-debut-saison",
+        title: "¿Es necesario ajustar la alcalinidad (TAC) al comienzo de la temporada?",
+        icon: "message-circle"
+      },
+      {
+        id: "installer-automatic",
+        title: "¿Cómo instalo la aplicación Automatic?",
+        icon: "message-circle"
+      }
+    ],
 
-        // === Thème ===
-        color: "#009aa6",
-        variant: "soft",
-        headerVariant: "glass",
-        themeMode: "light",
-        fontFamily: "Roboto Condensed",
-        radius: 1,
+    // Campo de entrada
+    composerPlaceholder: "¿Qué está buscando …?",
+    allowFileUpload: true,
+    disableSendButton: true,
+    autoScrollToNewMessage: true,
+    themeToggleEnabled: true,
+    cameraCaptureEnabled: true,
+    voiceInputEnabled: true,
+    emojiPickerEnabled: false,
 
-        // === Footer ===
-        footer: "",
-        // === Liens dans le header ===
-        website: {},
-        email: {},
-        phone: {},
-        termsOfService: {},
-        privacyPolicy: {},
+    // Tema
+    color: "#57929f",
+    variant: "soft",
+    headerVariant: "solid",
+    themeMode: "light",
+    persistThemeMode: true,
+    fontFamily: "Roboto Condensed",
+    radius: 1,
 
-        // === Fonctionnalités ===
-        feedbackEnabled: true,
-        soundEnabled: false,
+    // Navegación del encabezado
+    fullscreenRedirectUrl: "https://www.bayrol.es/assistant",
+    fullscreenRedirectTarget: "_blank",
+    mobileCloseRedirectUrl: "https://www.bayrol.es",
 
-        // === Message de réflexion par défaut ===
-        defaultThinkingMessage: "Pensando...",
+    // Actividad de las herramientas: el historial permanece visible hasta el siguiente mensaje del usuario
+    defaultThinkingMessage: "Pensando...",
+    toolActivityIcons: {
+      searchKnowledge: {
+        icon: "book-open",
+        matchMessages: ["Estoy consultando la informacion de BAYROL", "base de conocimientos"]
+      },
+      analyzeDocument: {
+        icon: "image",
+        matchMessages: ["Estoy analizando su documento", "analiza la imagen"]
+      },
+      webSearch: {
+        icon: "globe",
+        matchMessages: ["Inicio una busqueda web"]
+      },
+      findResellers: {
+        icon: "map",
+        matchMessages: ["Estoy buscando distribuidores cerca de usted"]
+      },
+      calculatePoolVolume: {
+        icon: "calculator",
+        matchMessages: ["Calculo el volumen de su piscina"]
+      },
+      sendEmail: {
+        icon: "mail",
+        matchMessages: ["Estoy reenviando su solicitud"]
+      }
+    },
 
-        // === Navigation header (optionnel) ===
-        headerAvatarLink: "https://www.bayrol.es",
-        mobileCloseRedirectUrl: "https://www.bayrol.es",
+    feedbackEnabled: true,
+    soundEnabled: true,
+    footer: "",
+    sourcesHeading: "Para saber más:",
 
-        // === Message proactif (bulle automatique) ===
-        proactiveMessageEnabled: false,
-        proactiveBubbleMessage: "¡Hola! 👋 ¿En qué puedo ayudarte?",
-        proactiveBubbleTriggerType: "afterDelay",
-        proactiveBubbleDelayTime: 5,
+    labels: {
+      fullscreen: "Abrir el asistente en pantalla completa",
+      soundOn: "Activar el sonido",
+      soundOff: "Desactivar el sonido",
+      newConversation: "Nueva conversación",
+      close: "Cerrar el chat",
+      confirmNewConversationTitle: "¿Iniciar una nueva conversación?",
+      confirmNewConversationDescription: "La conversación actual estará disponible hasta que se vuelva a cargar la página.",
+      confirm: "Nueva conversación",
+      cancel: "Cancelar",
+      feedbackTitle: "Ayúdenos a mejorar",
+      feedbackPlaceholder: "Díganos qué no ha funcionado…",
+      feedbackConfirm: "Enviar comentarios",
+      feedbackCancel: "Cancelar",
+      feedbackPositive: "Respuesta útil",
+      feedbackNegative: "Respuesta que se puede mejorar",
+      camera: "Hacer una foto",
+      microphoneStart: "Grabar un mensaje de voz",
+      microphoneStop: "Detener la grabación",
+      themeLight: "Activar el tema claro",
+      themeDark: "Activar el tema oscuro"
+    },
 
-        // === Bouton flottant (FAB) ===
-        fabImage: "https://files.bpcontent.cloud/2025/05/27/14/20250527142606-PXAKY6YR.png",
+    // Mensaje proactivo
+    proactiveMessageEnabled: false,
+    proactiveBubbleMessage: "¡Hola! ¿En qué puedo ayudarte?",
+    proactiveBubbleTriggerType: "afterDelay",
+    proactiveBubbleDelayTime: 5,
 
-        // === Stylesheet personnalisée ===
-        additionalStylesheetUrl: "https://files.bpcontent.cloud/2025/05/22/08/20250522085818-PQGM1TKG.css"
-    }
-});
-
+    // Botón flotante
+    fabImage: "https://files.bpcontent.cloud/2025/05/27/14/20250527142606-PXAKY6YR.png"
+  }
+})

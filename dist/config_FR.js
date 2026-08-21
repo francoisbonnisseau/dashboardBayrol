@@ -2,7 +2,7 @@ window.initCustomWebchat({
   clientId: "9f8071db-dd35-4cef-beb9-25610968c22b",
   configuration: {
     // Identité BAYROL
-    botName: "Assistant digital Bayrol",
+    botName: "Assistant Digital BAYROL",
     botAvatar: "https://files.bpcontent.cloud/2025/07/03/08/20250703081111-XRZRAKW4.png",
     botDescription: "Cet assistant utilise l’IA et peut se tromper. En l’utilisant, vous acceptez nos conditions d’utilisation.",
     headerAvatarLink: "https://www.bayrol.fr",
