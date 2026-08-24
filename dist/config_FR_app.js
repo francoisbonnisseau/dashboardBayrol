@@ -61,7 +61,6 @@ window.initCustomWebchat({
     // Navigation du header
     fullscreenRedirectUrl: "https://www.bayrol.fr/assistant",
     fullscreenRedirectTarget: "_blank",
-    mobileCloseRedirectUrl: "https://www.bayrol.fr",
 
     // Activité des outils : l’historique reste visible jusqu’au prochain message utilisateur
     defaultThinkingMessage: "Réflexion...",
