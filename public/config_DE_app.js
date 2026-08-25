@@ -59,7 +59,9 @@ window.initCustomWebchat({
     // Navigation im Header
     fullscreenRedirectUrl: "https://www.bayrol.de/assistant",
     fullscreenRedirectTarget: "_blank",
-    mobileCloseRedirectUrl: "https://www.bayrol.de",
+
+    // Ouverture des liens dans le navigateur externe de l’application
+    externalLinkMode: 'system',
 
     // Tool-Aktivität: Der Verlauf bleibt bis zur nächsten Nachricht des Nutzers sichtbar
     defaultThinkingMessage: "Denken...",

@@ -15,11 +15,11 @@ import {
   RefreshCw,
   User, 
   Bot, 
-  Clock,
-  ExternalLink
+  Clock
 } from 'lucide-react';
 import type { Message } from '../types';
 import { formatBotpressError } from '@/lib/errorMessages';
+import MessagePayloadContent from './MessagePayloadContent';
 
 interface ConversationDetailProps {
   botId: string; 
@@ -174,31 +174,7 @@ export default function ConversationDetail({ botId, conversationId, onClose, ope
                               </div>
                             )}
                             
-                            <div>
-                              {message.payload.text ? (
-                                <p className="text-sm whitespace-pre-wrap">{message.payload.text}</p>
-                              ) : (
-                                <div className="text-xs text-muted-foreground italic">
-                                  Complex message type: {message.payload.type || 'unknown'}
-                                </div>
-                              )}
-                            </div>
-                            
-                            {message.payload.type && message.payload.type !== 'text' && (
-                              <div className="mt-2 pt-2 border-t border-gray-200">
-                                <details>
-                                  <summary className="text-xs cursor-pointer text-blue-600 hover:text-blue-800">
-                                    <span className="flex items-center">
-                                      <ExternalLink className="h-3 w-3 mr-1" />
-                                      View full payload
-                                    </span>
-                                  </summary>
-                                  <pre className="mt-2 p-2 bg-gray-800 text-gray-100 rounded text-xs overflow-auto max-h-40">
-                                    {JSON.stringify(message.payload, null, 2)}
-                                  </pre>
-                                </details>
-                              </div>
-                            )}
+                            <MessagePayloadContent payload={message.payload} />
                           </CardContent>
                         </Card>
                       ))}
