@@ -15,18 +15,18 @@ window.initCustomWebchat({
     // BEGIN MANAGED CONVERSATION STARTERS
     conversationStarters: [
       {
-        id: "chloration-choc",
-        title: "Comment faire une chloration choc",
+        id: "intro-3",
+        title: "Comment installer l'application de l'Automatic ?",
         icon: "message-circle"
       },
       {
-        id: "tac-debut-saison",
-        title: "Est-ce qu’il faut ajuster le TAC en début de saison",
+        id: "intro-2",
+        title: "Est-ce qu’il faut ajuster le TAC en début de saison ?",
         icon: "message-circle"
       },
       {
-        id: "installer-automatic",
-        title: "Comment installer l’application de l’automatic",
+        id: "intro-1",
+        title: "Comment faire une chloration choc ?",
         icon: "message-circle"
       }
     ],
