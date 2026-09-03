@@ -28,7 +28,7 @@ window.initCustomWebchat({
       },
       {
         id: "intro-3",
-        title: "Welcher Redox-Wert ist optimal?",
+        title: "Was ist eine aktive Überwinterung?",
         icon: "message-circle"
       },
       {
