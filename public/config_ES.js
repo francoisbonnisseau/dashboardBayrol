@@ -12,6 +12,7 @@ window.initCustomWebchat({
     welcomeHeading: "¿Cómo puedo ayudarle hoy?",
     welcomeDescription: "Este asistente utiliza IA y puede cometer errores. Al utilizarlo, acepta nuestra [política de privacidad](https://www.bayrol.es/datos-privados).",
     welcomeInfoUrl: "https://www.bayrol.es/datos-privados",
+    // BEGIN MANAGED CONVERSATION STARTERS
     conversationStarters: [
       {
         id: "chloration-choc",
@@ -29,6 +30,7 @@ window.initCustomWebchat({
         icon: "message-circle"
       }
     ],
+    // END MANAGED CONVERSATION STARTERS
 
     // Campo de entrada
     composerPlaceholder: "¿Qué está buscando …?",

@@ -12,6 +12,7 @@ window.initCustomWebchat({
     welcomeHeading: "Wie kann ich Ihnen heute helfen?",
     welcomeDescription: "Dieser Assistent nutzt KI und kann Fehler machen. Mit seiner Nutzung akzeptieren Sie unsere [Datenschutzerklärung](https://www.bayrol.de/datenschutz).",
     welcomeInfoUrl: "https://www.bayrol.de/datenschutz",
+    // BEGIN MANAGED CONVERSATION STARTERS
     conversationStarters: [
       {
         id: "chloration-choc",
@@ -29,6 +30,7 @@ window.initCustomWebchat({
         icon: "message-circle"
       }
     ],
+    // END MANAGED CONVERSATION STARTERS
 
     // Eingabefeld
     composerPlaceholder: "Wonach suchen Sie …",

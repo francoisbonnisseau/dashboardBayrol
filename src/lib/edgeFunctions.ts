@@ -12,6 +12,22 @@ interface BotpressConfigResponse {
   bots?: Record<string, string>;
 }
 
+export type ConversationStarterLocale = 'fr' | 'de' | 'es';
+
+export interface ConversationStarter {
+  id: string;
+  title: string;
+  icon: 'message-circle';
+}
+
+interface PublishConversationStartersResponse {
+  locale: ConversationStarterLocale;
+  starterCount: number;
+  changedFiles: string[];
+  commit: string | null;
+  commitMessage: string;
+}
+
 function getFunctionsBaseUrl(): string {
   const baseUrl = (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || '').trim();
   if (!baseUrl) {
@@ -30,10 +46,6 @@ function getEdgeHeaders(extra?: HeadersInit): HeadersInit {
 }
 
 async function parseError(response: Response, fallback: string): Promise<string> {
-  if (response.status === 401) {
-    return 'Edge function unauthorized. Disable JWT verification on this function in Supabase.';
-  }
-
   try {
     const data = await response.json();
     if (typeof data?.error === 'string' && data.error.trim()) {
@@ -45,6 +57,11 @@ async function parseError(response: Response, fallback: string): Promise<string>
   } catch {
     // Ignore JSON parse errors and return fallback
   }
+
+  if (response.status === 401) {
+    return 'Edge function unauthorized. Disable JWT verification on this function in Supabase.';
+  }
+
   return fallback;
 }
 
@@ -79,4 +96,26 @@ export async function getBotpressConfig(sessionToken: string): Promise<BotpressC
   }
 
   return (await response.json()) as BotpressConfigResponse;
+}
+
+export async function publishConversationStarters(
+  sessionToken: string,
+  locale: ConversationStarterLocale,
+  starters: ConversationStarter[]
+): Promise<PublishConversationStartersResponse> {
+  const response = await fetch(`${getFunctionsBaseUrl()}/dashboard-publish-conversation-starters`, {
+    method: 'POST',
+    headers: getEdgeHeaders({
+      Authorization: `Bearer ${sessionToken}`,
+      'Content-Type': 'application/json',
+    }),
+    body: JSON.stringify({ locale, starters }),
+  });
+
+  if (!response.ok) {
+    const message = await parseError(response, 'Unable to publish conversation starters');
+    throw new Error(message);
+  }
+
+  return (await response.json()) as PublishConversationStartersResponse;
 }

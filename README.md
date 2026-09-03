@@ -50,10 +50,11 @@ A modern React dashboard for visualizing Botpress bot conversations across multi
    - `supabase/sql/dashboard_auth_setup.sql`
 2. Deploy Edge Functions:
    ```bash
-   supabase functions deploy dashboard-login
-   supabase functions deploy dashboard-get-botpress-token
+   supabase functions deploy dashboard-login --no-verify-jwt
+   supabase functions deploy dashboard-get-botpress-token --no-verify-jwt
+   supabase functions deploy dashboard-publish-conversation-starters --no-verify-jwt
    ```
-   Then disable JWT verification for both functions in Supabase Dashboard (Function Settings).
+   These functions use the dashboard's custom opaque session token, which is validated by the function itself; keep JWT verification disabled for all three functions (the flag does this at deployment time).
 3. Set Edge Function secrets:
    ```bash
    supabase secrets set \
@@ -63,8 +64,10 @@ A modern React dashboard for visualizing Botpress bot conversations across multi
      BOTPRESS_BOT_ID_DE=... \
      BOTPRESS_BOT_ID_ES=... \
      BOTPRESS_BOT_ID_LEROY_MERLIN_ES=... \
-     DASHBOARD_SESSION_TTL_HOURS=8
+     DASHBOARD_SESSION_TTL_HOURS=8 \
+     GITHUB_TOKEN=...
    ```
+   `GITHUB_TOKEN` must be a fine-grained GitHub token restricted to `francoisbonnisseau/dashboardBayrol` with `Contents: read and write`. It is read only by the Supabase Edge Function and must never be added to frontend environment variables or committed files.
 4. Create/rotate users in `public.dashboard_users` using bcrypt hashes (examples in SQL file).
 
 ### Installation

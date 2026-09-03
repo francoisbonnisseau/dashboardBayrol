@@ -1,6 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
+import { useAuth } from '../contexts/AuthContext';
 import { useBotpressClient } from '../hooks/useBotpressClient';
+import {
+  publishConversationStarters,
+  type ConversationStarter,
+  type ConversationStarterLocale,
+} from '../lib/edgeFunctions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Edit2, Trash2, Save, RefreshCw, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, RefreshCw, Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 const TABLE_NAME = 'introTable';
@@ -23,18 +29,33 @@ interface IntroEntry {
   updatedAt?: string;
 }
 
+interface IntroTableRow {
+  id: number;
+  sentence?: unknown;
+  season?: unknown;
+  live?: unknown;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface IntroFormData {
   sentence: string;
   season: string;
   live: string;
 }
 
+const publishableBotIds = new Set<ConversationStarterLocale>(['fr', 'de', 'es']);
+
 export default function IntroTable() {
   const { settings } = useSettings();
+  const { sessionToken } = useAuth();
   const [selectedBotId, setSelectedBotId] = useState<string>('');
   const [entries, setEntries] = useState<IntroEntry[]>([]);
   const [loading, setLoading] = useState(false); // loading list
   const [saving, setSaving] = useState(false);   // add/update in progress
+  const [publishing, setPublishing] = useState(false);
+  const [publicationPreview, setPublicationPreview] = useState<ConversationStarter[] | null>(null);
+  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<IntroEntry | null>(null);
@@ -42,20 +63,14 @@ export default function IntroTable() {
 
   const client = useBotpressClient(selectedBotId);
 
-  useEffect(() => {
-    if (!selectedBotId && settings.bots.length > 0) {
-      const firstBot = settings.bots.find(b => b.botId);
-      if (firstBot) setSelectedBotId(firstBot.botId);
-    }
-  }, [settings.bots, selectedBotId]);
+  const availableBots = useMemo(
+    () => settings.bots.filter((bot) => publishableBotIds.has(bot.id as ConversationStarterLocale)),
+    [settings.bots]
+  );
+  const selectedBot = availableBots.find((bot) => bot.botId === selectedBotId);
+  const selectedLocale = selectedBot?.id as ConversationStarterLocale | undefined;
 
-  useEffect(() => {
-    if (client && selectedBotId) {
-      loadEntries();
-    }
-  }, [client, selectedBotId]);
-
-  const loadEntries = async () => {
+  const loadEntries = useCallback(async () => {
     if (!client) return;
     setLoading(true);
     try {
@@ -65,18 +80,19 @@ export default function IntroTable() {
         orderBy: 'createdAt',
         orderDirection: 'desc'
       });
-      setEntries(response.rows.map((row: any) => {
+      setEntries(response.rows.map((row: unknown) => {
+        const introRow = row as IntroTableRow;
         // row.live might be boolean or string; normalize to display string
         let liveValue = '';
-        if (typeof row.live === 'boolean') liveValue = row.live ? 'yes' : 'no';
-        else if (typeof row.live === 'string') liveValue = row.live.toLowerCase();
+        if (typeof introRow.live === 'boolean') liveValue = introRow.live ? 'yes' : 'no';
+        else if (typeof introRow.live === 'string') liveValue = introRow.live.toLowerCase();
         return {
-          id: row.id,
-          sentence: (row.sentence as string) || '',
-          season: (row.season as string) || '',
+          id: introRow.id,
+          sentence: typeof introRow.sentence === 'string' ? introRow.sentence : '',
+          season: typeof introRow.season === 'string' ? introRow.season : '',
           live: liveValue,
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt
+          createdAt: introRow.createdAt,
+          updatedAt: introRow.updatedAt
         } as IntroEntry;
       }));
     } catch (error) {
@@ -85,7 +101,20 @@ export default function IntroTable() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [client]);
+
+  useEffect(() => {
+    if (!selectedBotId && availableBots.length > 0) {
+      const firstBot = availableBots.find(b => b.botId);
+      if (firstBot) setSelectedBotId(firstBot.botId);
+    }
+  }, [availableBots, selectedBotId]);
+
+  useEffect(() => {
+    if (client && selectedBotId) {
+      loadEntries();
+    }
+  }, [client, loadEntries, selectedBotId]);
 
   const resetForm = () => setFormData({ sentence: '', season: '', live: '' });
 
@@ -158,6 +187,49 @@ export default function IntroTable() {
     }
   };
 
+  const getActiveStarters = (): ConversationStarter[] => entries
+    .filter((entry) => entry.live === 'yes')
+    .map((entry) => ({
+      id: `intro-${entry.id}`,
+      title: entry.sentence,
+      icon: 'message-circle',
+    }));
+
+  const openPublishDialog = () => {
+    if (!selectedLocale) {
+      toast.error('Select a FR, DE or ES bot before publishing');
+      return;
+    }
+
+    setPublicationPreview(getActiveStarters());
+    setIsPublishDialogOpen(true);
+  };
+
+  const handlePublish = async () => {
+    if (!publicationPreview || !selectedLocale) return;
+    if (!sessionToken) {
+      toast.error('An active session is required to publish questions');
+      return;
+    }
+
+    try {
+      setPublishing(true);
+      const result = await publishConversationStarters(sessionToken, selectedLocale, publicationPreview);
+      setIsPublishDialogOpen(false);
+      setPublicationPreview(null);
+      toast.success(
+        result.changedFiles.length > 0
+          ? `${publicationPreview.length} question(s) published to ${selectedLocale.toUpperCase()}`
+          : 'The conversation starters are already up to date'
+      );
+    } catch (error) {
+      console.error('Error publishing conversation starters:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to publish conversation starters');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   const openEditDialog = (entry: IntroEntry) => {
     setEditingEntry(entry);
     setFormData({ sentence: entry.sentence, season: entry.season, live: entry.live });
@@ -192,7 +264,7 @@ export default function IntroTable() {
                   <SelectValue placeholder="Select a bot" />
                 </SelectTrigger>
                 <SelectContent>
-                  {settings.bots.filter((bot) => bot.botId).map(bot => (
+                  {availableBots.filter((bot) => bot.botId).map(bot => (
                     <SelectItem key={bot.id} value={bot.botId}>
                       {bot.name}
                     </SelectItem>
@@ -205,16 +277,28 @@ export default function IntroTable() {
               <p className="text-sm text-muted-foreground">
                 Manage introductory sentences per season & live status
               </p>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => loadEntries()} 
-                disabled={!client || loading}
-                className="h-9"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={openPublishDialog}
+                  disabled={!client || loading || publishing || !selectedLocale}
+                  className="h-9"
+                >
+                  {publishing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                  Publier les questions actives
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadEntries()}
+                  disabled={!client || loading || publishing}
+                  className="h-9"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -360,6 +444,49 @@ export default function IntroTable() {
               <Button onClick={handleUpdate} disabled={saving}>
                 {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                 {saving ? 'Saving...' : 'Update Entry'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={isPublishDialogOpen}
+          onOpenChange={(open) => {
+            if (!publishing) {
+              setIsPublishDialogOpen(open);
+              if (!open) setPublicationPreview(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-xl bg-white">
+            <DialogHeader>
+              <DialogTitle>Publier les questions actives</DialogTitle>
+              <DialogDescription>
+                Les questions ci-dessous seront publiées dans les configurations {selectedLocale?.toUpperCase()} web et app.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-80 overflow-y-auto rounded-md border p-4">
+              {publicationPreview?.length ? (
+                <ul className="space-y-3">
+                  {publicationPreview.map((starter) => (
+                    <li key={starter.id} className="text-sm">
+                      {starter.title}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Aucune question active : la publication videra les conversation starters de cette langue.
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsPublishDialogOpen(false)} disabled={publishing}>
+                Annuler
+              </Button>
+              <Button onClick={handlePublish} disabled={publishing || publicationPreview === null}>
+                {publishing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                {publishing ? 'Publication...' : 'Confirmer la publication'}
               </Button>
             </DialogFooter>
           </DialogContent>
