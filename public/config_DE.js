@@ -15,18 +15,18 @@ window.initCustomWebchat({
     // BEGIN MANAGED CONVERSATION STARTERS
     conversationStarters: [
       {
-        id: "chloration-choc",
+        id: "intro-4",
+        title: "Wie kann ich die Automatic App installieren?",
+        icon: "message-circle"
+      },
+      {
+        id: "intro-3",
+        title: "Welcher Redox-Wert ist optimal?",
+        icon: "message-circle"
+      },
+      {
+        id: "intro-2",
         title: "Wie führe ich eine Stoßchlorung durch?",
-        icon: "message-circle"
-      },
-      {
-        id: "tac-debut-saison",
-        title: "Muss der TAC-Wert zu Beginn der Saison angepasst werden?",
-        icon: "message-circle"
-      },
-      {
-        id: "installer-automatic",
-        title: "Wie installiere ich die Automatic-App?",
         icon: "message-circle"
       }
     ],
