@@ -1,26 +1,13 @@
 import type { Message } from '../types';
+import type { StructuredMessagePayload } from '../types/structuredMessage.ts';
+
+export type {
+  SourceItem,
+  StepListItem,
+  StructuredMessagePayload,
+} from '../types/structuredMessage.ts';
 
 type PayloadRecord = Record<string, unknown>;
-
-export interface StepListItem {
-  title?: string;
-  text?: string;
-}
-
-export interface SourceItem {
-  docName?: string;
-  title?: string;
-  description?: string;
-  picture?: string;
-  url?: string;
-}
-
-export interface StructuredMessagePayload {
-  kind: 'step_list' | 'sources';
-  title?: string;
-  steps?: StepListItem[];
-  items?: SourceItem[];
-}
 
 function asRecord(value: unknown): PayloadRecord | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)

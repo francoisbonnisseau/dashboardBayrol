@@ -19,3 +19,28 @@ test('normalizes and updates a strong row without changing its id', () => {
 test('rejects rows without a recognized modelType', () => {
   assert.equal(normalizeAiModelConfigRow({ id: 1, model: 'openai:gpt-4.1' }), null);
 });
+
+test('canonicalizes an alias before writing AIModelTable', () => {
+  assert.deepEqual(
+    buildPushLivePayload({ modelType: 'strong', modelId: 'gpt-5.4', temperature: 0.3, reasoningEffort: 'medium' }),
+    {
+      modelType: 'strong',
+      provider: 'openai',
+      model: 'openai:gpt-5.4-2026-03-05',
+      temperature: 0.3,
+      reasoningEffort: 'medium',
+    }
+  );
+
+  assert.deepEqual(
+    normalizeAiModelConfigRow({ id: 3, modelType: 'cheap', provider: 'legacy', model: 'gpt-5.4-mini' }),
+    {
+      id: 3,
+      modelType: 'cheap',
+      provider: 'openai',
+      model: 'openai:gpt-5.4-mini-2026-03-17',
+      temperature: 0,
+      reasoningEffort: 'none',
+    }
+  );
+});

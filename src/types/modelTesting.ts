@@ -1,3 +1,5 @@
+import type { AgentResponsePart } from './structuredMessage.ts';
+
 export interface CognitiveModel {
   id: string;
   name: string;
@@ -32,12 +34,14 @@ export interface ModelResponseStep {
   id: string;
   kind: 'message' | 'tool_call';
   text?: string;
+  responsePart?: AgentResponsePart;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
   toolInput?: Record<string, unknown>;
   toolOutput?: unknown;
   toolDurationMs?: number;
-  toolSource?: 'direct' | 'prefetched';
+  toolSource?: 'direct' | 'prefetched' | 'simulated';
+  thinkingMessage?: string;
   status?: 'pending' | 'completed' | 'failed';
   error?: string;
 }
@@ -46,6 +50,7 @@ export interface ModelResponse {
   modelId: string;
   text: string;
   messages?: string[];
+  responseParts?: AgentResponsePart[];
   steps?: ModelResponseStep[];
   error?: string;
   pending?: boolean;

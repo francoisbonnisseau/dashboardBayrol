@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { filterDisplayableCognitiveModels } from './modelTestingModels.ts';
+import { filterDisplayableCognitiveModels, getProviderFromModelId, resolveModelReference } from './modelTestingModels.ts';
 import type { CognitiveModel } from '../types/modelTesting.ts';
 
 function model(id: string, tags: string[] = []): CognitiveModel {
@@ -23,4 +23,10 @@ test('filters speech-to-text and text-to-speech models from display lists', () =
     filterDisplayableCognitiveModels(models).map((entry) => entry.id),
     ['openai:gpt-4.1', 'anthropic:claude-3-5-sonnet']
   );
+});
+
+test('resolves live model aliases to canonical provider model references', () => {
+  assert.equal(resolveModelReference('gpt-5.4'), 'openai:gpt-5.4-2026-03-05');
+  assert.equal(getProviderFromModelId('gpt-5.4-mini'), 'openai');
+  assert.equal(resolveModelReference('openai:custom-model'), 'openai:custom-model');
 });

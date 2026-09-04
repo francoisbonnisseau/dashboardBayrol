@@ -40,6 +40,7 @@ import type {
   ModelResponseStep,
   PerModelHistory,
 } from '@/types/modelTesting';
+import type { SourceItem } from '@/types/structuredMessage';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -49,6 +50,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { StructuredResponseContent } from './StructuredResponseContent';
 
 const TABLE_NAME = 'promptsTable';
 const AI_MODEL_TABLE_NAME = 'AIModelTable';
@@ -315,6 +317,16 @@ function extractAgentDisplayMessage(rawMessage: string) {
 }
 
 function getRenderableResponseMessages(response: ModelResponse) {
+  if (response.responseParts?.length) {
+    return response.responseParts.flatMap((part) => {
+      if (part.type === 'text') return [part.text];
+      if (part.type === 'step_list') {
+        return [part.steps.map((step) => `${step.title || ''}\n${step.text || ''}`.trim()).filter(Boolean).join('\n')];
+      }
+      return [];
+    });
+  }
+
   const rawMessages = response.messages?.length ? response.messages : [response.text];
 
   return rawMessages
@@ -328,8 +340,9 @@ function responseHasProgress(response: ModelResponse | undefined) {
   }
 
   return Boolean(
-    response.steps?.length ||
+      response.steps?.length ||
       response.messages?.length ||
+      response.responseParts?.length ||
       response.text ||
       response.error ||
       response.latencyMs ||
@@ -389,6 +402,11 @@ function ToolCallStep({ step }: { step: ModelResponseStep }) {
               Prefetched
             </Badge>
           ) : null}
+          {step.toolSource === 'simulated' ? (
+            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+              Simulated
+            </Badge>
+          ) : null}
           <Badge
             variant="outline"
             className={cn(
@@ -403,6 +421,11 @@ function ToolCallStep({ step }: { step: ModelResponseStep }) {
         </div>
       </summary>
       <div className="mt-3 space-y-3">
+        {step.thinkingMessage ? (
+          <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+            {step.thinkingMessage}
+          </div>
+        ) : null}
         <div>
           <div className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-slate-500">{inputLabel}</div>
           <pre className="max-h-44 overflow-auto rounded-md border border-slate-200 bg-white p-3 text-xs leading-6 text-slate-700">
@@ -522,6 +545,8 @@ function ResponseCard({
             steps.map((step) =>
               step.kind === 'tool_call' ? (
                 <ToolCallStep key={step.id} step={step} />
+              ) : step.responsePart ? (
+                <StructuredResponseContent key={step.id} part={step.responsePart} />
               ) : (
                 <div
                   key={step.id}
@@ -536,6 +561,10 @@ function ResponseCard({
                 </div>
               )
             )
+          ) : response.responseParts?.length ? (
+            response.responseParts.map((part, index) => (
+              <StructuredResponseContent key={`${response.modelId}-part-${index}`} part={part} />
+            ))
           ) : messages.length > 0 ? (
             messages.map((message, index) => (
               <div
@@ -555,6 +584,12 @@ function ResponseCard({
           ) : (
             <p className="whitespace-pre-wrap">{response.text || '[Empty response]'}</p>
           )}
+
+          {response.error ? (
+            <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-3 text-sm leading-7 text-rose-700">
+              Technical error: {response.error}
+            </div>
+          ) : null}
 
           {response.pending ? (
             <div className="inline-flex items-center gap-2 text-[15px] leading-7 text-slate-500">
@@ -1419,6 +1454,44 @@ export default function ModelTesting() {
     applyModeSnapshot(nextMode, existingState?.modes?.[nextMode]);
   }
 
+  async function resolveDocuments(docNames: string[]): Promise<SourceItem[]> {
+    if (!client || docNames.length === 0) {
+      return [];
+    }
+
+    try {
+      const response = await client.findTableRows({
+        table: 'documentsTable',
+        limit: Math.min(6, docNames.length),
+        filter: { docName: { $in: docNames } },
+        select: ['docName', 'title', 'description', 'picture', 'url'],
+      });
+      const rows = response.rows as Array<Record<string, unknown>>;
+      const rowsByDocName = new Map(
+        rows
+          .map((row) => [typeof row.docName === 'string' ? row.docName : '', row] as const)
+          .filter(([docName]) => Boolean(docName))
+      );
+
+      return docNames.flatMap((docName) => {
+        const row = rowsByDocName.get(docName);
+        if (!row) return [];
+
+        const asString = (value: unknown) => (typeof value === 'string' ? value : '');
+        return [{
+          docName,
+          title: asString(row.title) || docName,
+          description: asString(row.description),
+          picture: asString(row.picture),
+          url: asString(row.url),
+        }];
+      });
+    } catch (error) {
+      console.warn('Unable to resolve documents for model testing:', error);
+      return [];
+    }
+  }
+
   async function runSingleTurn(message: string) {
     const result = await runSingleModelTestingTurn({
       token: settings.token,
@@ -1434,6 +1507,7 @@ export default function ModelTesting() {
       temperature,
       maxTokens: DEFAULT_MAX_TOKENS,
       reasoningEffort: thinking,
+      resolveDocuments,
       onPending: ({ turns: pendingTurns, singleHistory: pendingHistory }) => {
         setTurns(pendingTurns);
         persistModeConversation('single', {
@@ -1477,6 +1551,7 @@ export default function ModelTesting() {
       temperature,
       maxTokens: DEFAULT_MAX_TOKENS,
       reasoningEffort: thinking,
+      resolveDocuments,
       onPending: ({ turns: pendingTurns, compareHistory: pendingHistory }) => {
         setTurns(pendingTurns);
         persistModeConversation('compare', {

@@ -130,6 +130,13 @@ export async function generateTextWithCognitiveApi({
   };
 
   try {
+    console.debug('[ModelTesting][Cognitive] request', JSON.stringify({
+      model,
+      reasoningEffort,
+      responseFormat,
+      messageCount: payload.messages.length,
+      inputCharacters: payload.messages.reduce((total, message) => total + message.content.length, 0),
+    }));
     const response = await fetch(COGNITIVE_GENERATE_TEXT_URL, {
       method: 'POST',
       headers: buildHeaders(token, botId),
@@ -143,6 +150,14 @@ export async function generateTextWithCognitiveApi({
     }
 
     const raw = await response.json();
+    console.debug('[ModelTesting][Cognitive] response', JSON.stringify({
+      model,
+      status: response.status,
+      responseKeys: raw && typeof raw === 'object' ? Object.keys(raw) : [],
+      firstChoiceKeys: raw?.choices?.[0] && typeof raw.choices[0] === 'object' ? Object.keys(raw.choices[0]) : [],
+      outputCharacters: extractTextFromCognitiveResponse(raw).length,
+      outputPreview: extractTextFromCognitiveResponse(raw).slice(0, 2000),
+    }));
     return {
       text: extractTextFromCognitiveResponse(raw),
       usage: extractUsage(raw),
