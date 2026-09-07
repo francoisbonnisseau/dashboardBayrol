@@ -21,7 +21,7 @@ window.initCustomWebchat({
       },
       {
         id: "intro-2",
-        title: "Est-ce qu’il faut ajuster le TAC en début de saison ?",
+        title: "Quand et comment mettre sa piscine en hivernage ?",
         icon: "message-circle"
       },
       {
