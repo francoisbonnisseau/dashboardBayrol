@@ -1,3 +1,5 @@
+import { useSentimentRows, useSentimentTable } from '@/queries/useSentimentRows';
+import { getAllSentimentRows } from '@/api/botpress/sentiment';
 import { useState, useEffect, useCallback } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useBotpressClient } from '../hooks/useBotpressClient';
@@ -21,58 +23,40 @@ import {
 import { subDays } from 'date-fns';
 import ConversationDetail from './ConversationDetail';
 import { formatBotpressError } from '@/lib/errorMessages';
-import { buildSentimentRowsQuery } from '@/lib/sentimentRows';
 
-const TABLE_NAME = 'conversationsAnalysisTable';
 
-interface SentimentRow {
-  id: number;
-  date: string;
-  topics?: string;
-  resolved: boolean;
-  sentiment: 'very negative' | 'negative' | 'neutral' | 'positive' | 'very positive';
-  conversationId: string;
-}
-
-interface TableResponse {
-  table: {
-    id: string;
-    name: string;
-    factor: number;
-    frozen: boolean;
-    schema: unknown;
-    tags: Record<string, unknown>;
-    isComputeEnabled: boolean;
-    createdAt: string;
-    updatedAt: string;
-  };
-  rows: number;
-  stale: number;
-  indexing: number;
-}
-
-// Interface definitions removed
+// Keep the initial range stable across navigation while preserving its original time bounds.
+const initialStartDate = subDays(new Date(), 2);
+const initialEndDate = new Date();
 
 export default function SentimentAnalysis() {
   const { settings } = useSettings();
   const [selectedBotId, setSelectedBotId] = useState<string>('');
-  const [rows, setRows] = useState<SentimentRow[]>([]);
-  const [tableInfo, setTableInfo] = useState<TableResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   // Filter states
   const [sentimentFilter, setSentimentFilter] = useState<string | null>(null);
   const [showResolved, setShowResolved] = useState<boolean>(false);
-  const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 2));
-  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  const [startDate, setStartDate] = useState<Date | undefined>(initialStartDate);
+  const [endDate, setEndDate] = useState<Date | undefined>(initialEndDate);
   const [currentPage, setCurrentPage] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
+
   // Conversation detail states
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [conversationSheetOpen, setConversationSheetOpen] = useState<boolean>(false);
   
   const client = useBotpressClient(selectedBotId);
   
+  const rowsQuery = useSentimentRows(client, settings.workspaceId, selectedBotId, {page: currentPage, sentiment: sentimentFilter, showResolved, startDate, endDate});
+  const tableQuery = useSentimentTable(client, settings.workspaceId, selectedBotId);
+  const rows = rowsQuery.data?.rows ?? [];
+  const filteredRows = rows;
+  const hasMore = rowsQuery.data?.hasMore ?? false;
+  const tableInfo = tableQuery.data;
+  const loading = rowsQuery.isFetching || tableQuery.isFetching || exporting;
+  const error = exportError || (rowsQuery.error ? formatBotpressError(rowsQuery.error, 'Failed to fetch rows') : tableQuery.error ? formatBotpressError(tableQuery.error, 'Failed to fetch table information') : null);
+  const fetchTableInfo = () => { void rowsQuery.refetch(); void tableQuery.refetch(); };
+
   // Set default bot if none selected
   useEffect(() => {
     if (!selectedBotId && settings.bots.length > 0) {
@@ -83,75 +67,6 @@ export default function SentimentAnalysis() {
     }
   }, [settings.bots, selectedBotId]);  
   
-  // Fetch rows using Botpress client - Define first to avoid circular reference
-  const fetchRows = useCallback(async () => {
-    if (!client) return;
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await client.findTableRows({
-        table: TABLE_NAME,
-        ...buildSentimentRowsQuery({
-          page: currentPage,
-          sentiment: sentimentFilter,
-          showResolved,
-          startDate,
-          endDate,
-        }),
-      });
-
-      const formattedRows = response.rows.map((row) => ({
-        id: row.id,
-        date: row.date,
-        topics: row.topics || '',
-        resolved: !!row.resolved,
-        sentiment: row.sentiment || 'neutral',
-        conversationId: row.conversationId || ''
-      }));
-      
-      setRows(formattedRows);
-      setHasMore(response.hasMore);
-    } catch (err) {
-      setError(formatBotpressError(err, 'Failed to fetch rows'));
-      setHasMore(false);
-      console.error('Error fetching rows:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [client, currentPage, sentimentFilter, showResolved, startDate, endDate]);
-  
-  // Fetch table information
-  const fetchTableInfo = useCallback(async () => {
-    if (!client) return;
-    
-    setLoading(true);
-    setError(null);
-    
-    try {      // Use the client directly to get table information
-      const data = await client.getTable({
-        table: TABLE_NAME
-      });
-      setTableInfo(data as TableResponse);
-      
-      // Now fetch rows
-      await fetchRows();
-    } catch (err) {
-      setError(formatBotpressError(err, 'Failed to fetch table information'));
-      console.error('Error fetching table info:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [client, fetchRows]);
-
-  // Fetch data when client or filters change
-  useEffect(() => {
-    if (client) {
-      fetchRows();
-    }
-  }, [client, fetchRows]);
-
   // Format date
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -163,38 +78,6 @@ export default function SentimentAnalysis() {
       minute: '2-digit'
     });
   };
-
-  // Filtered rows based on sentiment, resolved status, and date range
-  const filteredRows = rows.filter(row => {
-    // Apply sentiment filter if selected
-    if (sentimentFilter && row.sentiment !== sentimentFilter) {
-      return false;
-    }
-    
-    // Apply resolved filter
-    if (!showResolved && row.resolved) {
-      return false;
-    }
-    
-    // Apply date range filter
-    if (startDate || endDate) {
-      const rowDate = new Date(row.date);
-      
-      if (startDate && rowDate < startDate) {
-        return false;
-      }
-      
-      if (endDate) {
-        const endOfDay = new Date(endDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        if (rowDate > endOfDay) {
-          return false;
-        }
-      }
-    }
-    
-    return true;
-  });
 
   // Get color based on sentiment
   const getSentimentColor = (sentiment: string) => {
@@ -236,15 +119,17 @@ export default function SentimentAnalysis() {
   
   // Download conversations in JSON format with simplified structure
   const downloadConversations = useCallback(async () => {
-    if (!client || filteredRows.length === 0) return;
+    if (!client) return;
     
-    setLoading(true);
+    setExporting(true);
+    setExportError(null);
     
     try {
+      const exportRows = await getAllSentimentRows(client, {sentiment: sentimentFilter, showResolved, startDate, endDate});
       // Fetch full conversation details for each filtered conversation
       const conversationsData = [];
       
-      for (const row of filteredRows) {
+      for (const row of exportRows) {
         try {
           // Get messages for this conversation
           const response = await client.listMessages({ 
@@ -319,11 +204,12 @@ export default function SentimentAnalysis() {
       URL.revokeObjectURL(url);
       
     } catch (error) {
+      setExportError(formatBotpressError(error, 'Failed to export data'));
       console.error('Error downloading conversations:', error);
     } finally {
-      setLoading(false);
+      setExporting(false);
     }
-  }, [client, filteredRows, sentimentFilter, showResolved, startDate, endDate]);
+  }, [client, sentimentFilter, showResolved, startDate, endDate]);
 
   if (!settings.bots.some(bot => bot.botId)) {
     return (
@@ -351,6 +237,7 @@ export default function SentimentAnalysis() {
                   value={selectedBotId}
                   onValueChange={(botId) => {
                     setCurrentPage(0);
+                    setSelectedConversationId(null);
                     setSelectedBotId(botId);
                   }}
                 >
@@ -372,12 +259,12 @@ export default function SentimentAnalysis() {
               <div className="flex items-center gap-2">
                 <Button
                   onClick={downloadConversations}
-                  disabled={loading || !client || filteredRows.length === 0}
+                  disabled={loading || !client || (!hasMore && filteredRows.length === 0)}
                   size="sm"
                   variant="outline"
                 >
                   <Download className="h-4 w-4 mr-2" />
-                  Export ({filteredRows.length})
+                  {exporting ? 'Exporting…' : 'Export'}
                 </Button>
                 <Button
                   onClick={fetchTableInfo}
@@ -522,6 +409,11 @@ export default function SentimentAnalysis() {
             <Card>
               <CardContent className="pt-6 text-center text-muted-foreground">
                 {!client ? 'Select a bot to view sentiment analysis' : loading ? 'Loading data...' : 'No conversation data found'}
+                {currentPage > 0 && (
+                  <Button className="ml-3" variant="outline" size="sm" onClick={() => setCurrentPage(page => Math.max(0, page - 1))} disabled={loading}>
+                    <ChevronLeft className="mr-2 h-4 w-4" />Previous
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : (

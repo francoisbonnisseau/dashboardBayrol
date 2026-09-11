@@ -3,6 +3,7 @@ import { AlertCircle, Bot, ChevronLeft, ChevronRight, Loader2, Plus, Save, Send,
 import { toast } from 'sonner';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useBotpressClient } from '@/hooks/useBotpressClient';
+import { usePromptRows } from '@/queries/usePromptRows';
 import { fetchCognitiveModels } from '@/lib/cognitiveApi';
 import { filterDisplayableCognitiveModels } from '@/lib/modelTestingModels';
 import {
@@ -28,7 +29,6 @@ import { buildTimingBreakdownTitle, formatLatencyLabel, getDisplayedLatencyMs } 
 import { cn } from '@/lib/utils';
 import {
   getPromptSelectionKey,
-  normalizePromptRow,
   partitionPromptRows,
   type PromptRow,
 } from '@/lib/promptVersions';
@@ -52,7 +52,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { StructuredResponseContent } from './StructuredResponseContent';
 
-const TABLE_NAME = 'promptsTable';
+const EMPTY_PROMPT_ROWS: PromptRow[] = [];
 const AI_MODEL_TABLE_NAME = 'AIModelTable';
 const ALLOWED_PROMPT_BOTS = new Set(['fr', 'de', 'es']);
 const DEFAULT_TEMPERATURE = 0.3;
@@ -638,7 +638,6 @@ export default function ModelTesting() {
   const [cheapTemperature, setCheapTemperature] = useState<number>(DEFAULT_TEMPERATURE);
   const [cheapReasoningEffort, setCheapReasoningEffort] = useState<ThinkingOption>('high');
 
-  const [promptRows, setPromptRows] = useState<PromptRow[]>([]);
   const [selectedPromptKey, setSelectedPromptKey] = useState('');
 
   const [configSaved, setConfigSaved] = useState(true);
@@ -672,6 +671,8 @@ export default function ModelTesting() {
   const previousModelSelectionRef = useRef<{ modelA: string; modelB: string } | null>(null);
 
   const client = useBotpressClient(selectedBotId);
+  const promptQuery = usePromptRows(client, settings.workspaceId, selectedBotId);
+  const promptRows = promptQuery.data ?? EMPTY_PROMPT_ROWS;
   const prompts = useMemo(() => partitionPromptRows(promptRows), [promptRows]);
   const selectedPrompt = useMemo(
     () => getPromptBySelectionKey(prompts, selectedPromptKey),
@@ -960,39 +961,8 @@ export default function ModelTesting() {
   }, [selectedBotId, settings.token]);
 
   useEffect(() => {
-    if (!client || !selectedBotId) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadPrompts = async () => {
-      try {
-        const response = await client.findTableRows({
-          table: TABLE_NAME,
-          limit: 100,
-          orderBy: 'updatedAt',
-          orderDirection: 'desc',
-        });
-
-        if (!cancelled) {
-          const rows = response.rows.map((row: Record<string, unknown>) => normalizePromptRow(row));
-          setPromptRows(rows);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error('Error loading prompts:', error);
-          toast.error('Failed to load prompts');
-        }
-      }
-    };
-
-    void loadPrompts();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [client, selectedBotId]);
+    if (promptQuery.error) toast.error('Failed to load prompts');
+  }, [promptQuery.error]);
 
   useEffect(() => {
     setUserMessage('');

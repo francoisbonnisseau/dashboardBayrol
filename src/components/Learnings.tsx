@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
-import { useBotpressClient } from '../hooks/useBotpressClient';
+import { useLearnings } from '../queries/useKnowledgeRows';
+import type { LearningEntry } from '../api/botpress/knowledge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,15 +14,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface LearningEntry {
-  id: number;
-  question: string;
-  answer: string;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
 interface LearningFormData {
   question: string;
   answer: string;
@@ -31,8 +23,6 @@ interface LearningFormData {
 export default function Learnings() {
   const { settings } = useSettings();
   const [selectedBotId, setSelectedBotId] = useState<string>('');
-  const [learnings, setLearnings] = useState<LearningEntry[]>([]);
-  const [loading, setLoading] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<LearningEntry | null>(null);
@@ -43,42 +33,13 @@ export default function Learnings() {
   });
   const [newTag, setNewTag] = useState('');
 
-  const client = useBotpressClient(selectedBotId);
-
-  // Load learnings when bot is selected
+  const rowsQuery = useLearnings(selectedBotId);
+  const { client, saving } = rowsQuery;
+  const learnings = rowsQuery.data ?? [];
+  const loading = rowsQuery.isLoading;
   useEffect(() => {
-    if (client && selectedBotId) {
-      loadLearnings();
-    }
-  }, [client, selectedBotId]);
-
-  const loadLearnings = async () => {
-    if (!client) return;
-
-    setLoading(true);
-    try {
-      const response = await client.findTableRows({
-        table: 'learningsTable',
-        limit: 1000,
-        orderBy: 'createdAt',
-        orderDirection: 'desc'
-      });
-
-      setLearnings(response.rows.map(row => ({
-        id: row.id,
-        question: row.question as string,
-        answer: row.answer as string,
-        tags: (row.tags as string[]) || [],
-        createdAt: row.createdAt || '',
-        updatedAt: row.updatedAt || ''
-      })));
-    } catch (error) {
-      console.error('Error loading learnings:', error);
-      toast.error('Failed to load learnings');
-    } finally {
-      setLoading(false);
-    }
-  };
+    if (rowsQuery.error) toast.error('Failed to load learnings');
+  }, [rowsQuery.error]);
 
   const handleAddEntry = async () => {
     if (!client || !formData.question.trim() || !formData.answer.trim()) {
@@ -87,7 +48,7 @@ export default function Learnings() {
     }
 
     try {
-      await client.createTableRows({
+      await rowsQuery.create.mutateAsync({
         table: 'learningsTable',
         rows: [
           {
@@ -101,7 +62,6 @@ export default function Learnings() {
       toast.success('Learning entry added successfully');
       setIsAddDialogOpen(false);
       resetForm();
-      loadLearnings();
     } catch (error) {
       console.error('Error adding entry:', error);
       toast.error('Failed to add learning entry');
@@ -115,7 +75,7 @@ export default function Learnings() {
     }
 
     try {
-      await client.updateTableRows({
+      await rowsQuery.update.mutateAsync({
         table: 'learningsTable',
         rows: [
           {
@@ -131,7 +91,6 @@ export default function Learnings() {
       setIsEditDialogOpen(false);
       setEditingEntry(null);
       resetForm();
-      loadLearnings();
     } catch (error) {
       console.error('Error updating entry:', error);
       toast.error('Failed to update learning entry');
@@ -142,13 +101,12 @@ export default function Learnings() {
     if (!client) return;
 
     try {
-      await client.deleteTableRows({
+      await rowsQuery.remove.mutateAsync({
         table: 'learningsTable',
         ids: [id]
       });
 
       toast.success('Learning entry deleted successfully');
-      loadLearnings();
     } catch (error) {
       console.error('Error deleting entry:', error);
       toast.error('Failed to delete learning entry');
@@ -322,7 +280,7 @@ export default function Learnings() {
                       <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                         Cancel
                       </Button>
-                      <Button onClick={handleAddEntry}>
+                      <Button onClick={handleAddEntry} disabled={saving}>
                         <Save className="h-4 w-4 mr-2" />
                         Add Entry
                       </Button>
@@ -332,6 +290,9 @@ export default function Learnings() {
               </div>
             </CardHeader>
             <CardContent>
+              {rowsQuery.isFetching && !loading && (
+                <p className="text-sm text-muted-foreground" role="status">Refreshing...</p>
+              )}
               {loading ? (
                 <div className="text-center py-8">Loading learnings...</div>
               ) : learnings.length === 0 ? (
@@ -387,6 +348,7 @@ export default function Learnings() {
                               <Button
                                 variant="outline"
                                 size="sm"
+                                disabled={rowsQuery.remove.isPending}
                                 onClick={() => {
                                   if (confirm('Are you sure you want to delete this entry?')) {
                                     handleDeleteEntry(entry.id);
@@ -471,7 +433,7 @@ export default function Learnings() {
               <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleEditEntry}>
+              <Button onClick={handleEditEntry} disabled={saving}>
                 <Save className="h-4 w-4 mr-2" />
                 Update Entry
               </Button>

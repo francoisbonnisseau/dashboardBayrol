@@ -1,4 +1,4 @@
-export const SENTIMENT_PAGE_SIZE = 1000;
+export const SENTIMENT_PAGE_SIZE = 100;
 
 export const SENTIMENT_LIST_COLUMNS = [
   'date',
@@ -8,8 +8,9 @@ export const SENTIMENT_LIST_COLUMNS = [
   'conversationId',
 ] as const;
 
-interface SentimentRowsQueryOptions {
+export interface SentimentRowsQueryOptions {
   page: number;
+  pageSize?: number;
   sentiment: string | null;
   showResolved: boolean;
   startDate: Date | undefined;
@@ -18,6 +19,7 @@ interface SentimentRowsQueryOptions {
 
 export function buildSentimentRowsQuery({
   page,
+  pageSize = SENTIMENT_PAGE_SIZE,
   sentiment,
   showResolved,
   startDate,
@@ -36,8 +38,8 @@ export function buildSentimentRowsQuery({
   }
 
   return {
-    limit: SENTIMENT_PAGE_SIZE,
-    offset: page * SENTIMENT_PAGE_SIZE,
+    limit: pageSize,
+    offset: page * pageSize,
     select: [...SENTIMENT_LIST_COLUMNS],
     filter: {
       ...(sentiment && { sentiment: { $eq: sentiment } }),

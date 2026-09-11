@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
-import { useBotpressClient } from '../hooks/useBotpressClient';
+import { useCodeTextRows } from '../queries/useKnowledgeRows';
+import type { CodeTextEntry } from '../api/botpress/knowledge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,13 +15,6 @@ import { toast } from 'sonner';
 
 const TABLE_NAME = 'codeTextTable';
 
-interface CodeTextEntry {
-  id: number;
-  code: string;
-  text: string;
-  createdAt?: string;
-}
-
 interface CodeTextFormData {
   code: string;
   text: string;
@@ -29,15 +23,18 @@ interface CodeTextFormData {
 export default function CodeTextTable() {
   const { settings } = useSettings();
   const [selectedBotId, setSelectedBotId] = useState<string>('');
-  const [entries, setEntries] = useState<CodeTextEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<CodeTextEntry | null>(null);
   const [formData, setFormData] = useState<CodeTextFormData>({ code: '', text: '' });
 
-  const client = useBotpressClient(selectedBotId);
+  const rowsQuery = useCodeTextRows(selectedBotId);
+  const { client, saving } = rowsQuery;
+  const entries = rowsQuery.data ?? [];
+  const loading = rowsQuery.isLoading;
+  useEffect(() => {
+    if (rowsQuery.error) toast.error('Failed to load code/text entries');
+  }, [rowsQuery.error]);
 
   useEffect(() => {
     if (!selectedBotId && settings.bots.length > 0) {
@@ -45,39 +42,6 @@ export default function CodeTextTable() {
       if (firstBot) setSelectedBotId(firstBot.botId);
     }
   }, [settings.bots, selectedBotId]);
-
-  useEffect(() => {
-    if (client && selectedBotId) {
-      loadEntries();
-    }
-  }, [client, selectedBotId]);
-
-  const loadEntries = async () => {
-    if (!client) return;
-    setLoading(true);
-    try {
-      const response = await client.findTableRows({
-        table: TABLE_NAME,
-        limit: 1000,
-        orderBy: 'createdAt',
-        orderDirection: 'desc'
-      });
-
-      setEntries(
-        response.rows.map((row: any) => ({
-          id: row.id,
-          code: (row.code as string) || '',
-          text: (row.text as string) || '',
-          createdAt: row.createdAt
-        }))
-      );
-    } catch (error) {
-      console.error('Error loading code/text entries:', error);
-      toast.error('Failed to load code/text entries');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const resetForm = () => setFormData({ code: '', text: '' });
 
@@ -88,8 +52,7 @@ export default function CodeTextTable() {
     }
 
     try {
-      setSaving(true);
-      await client.createTableRows({
+      await rowsQuery.create.mutateAsync({
         table: TABLE_NAME,
         rows: [
           {
@@ -101,12 +64,9 @@ export default function CodeTextTable() {
       toast.success('Entry added');
       setIsAddDialogOpen(false);
       resetForm();
-      loadEntries();
     } catch (error) {
       console.error('Error adding code/text entry:', error);
       toast.error('Failed to add entry');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -117,8 +77,7 @@ export default function CodeTextTable() {
     }
 
     try {
-      setSaving(true);
-      await client.updateTableRows({
+      await rowsQuery.update.mutateAsync({
         table: TABLE_NAME,
         rows: [
           {
@@ -132,21 +91,17 @@ export default function CodeTextTable() {
       setIsEditDialogOpen(false);
       setEditingEntry(null);
       resetForm();
-      loadEntries();
     } catch (error) {
       console.error('Error updating code/text entry:', error);
       toast.error('Failed to update entry');
-    } finally {
-      setSaving(false);
     }
   };
 
   const handleDelete = async (id: number) => {
     if (!client) return;
     try {
-      await client.deleteTableRows({ table: TABLE_NAME, ids: [id] });
+      await rowsQuery.remove.mutateAsync({ table: TABLE_NAME, ids: [id] });
       toast.success('Entry deleted');
-      loadEntries();
     } catch (error) {
       console.error('Error deleting code/text entry:', error);
       toast.error('Failed to delete entry');
@@ -200,11 +155,11 @@ export default function CodeTextTable() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => loadEntries()}
-                disabled={!client || loading}
+                onClick={() => void rowsQuery.refetch()}
+                disabled={!client || rowsQuery.isFetching}
                 className="h-9"
               >
-                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 mr-2 ${rowsQuery.isFetching ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
             </div>
@@ -268,6 +223,9 @@ export default function CodeTextTable() {
             </div>
           </CardHeader>
           <CardContent>
+            {rowsQuery.isFetching && !loading && (
+              <p className="text-sm text-muted-foreground" role="status">Refreshing...</p>
+            )}
             {loading ? (
               <div className="text-center py-8">Loading entries...</div>
             ) : entries.length === 0 ? (
@@ -301,7 +259,8 @@ export default function CodeTextTable() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => {
+                              disabled={rowsQuery.remove.isPending}
+                                onClick={() => {
                                 if (confirm('Delete this entry?')) handleDelete(entry.id);
                               }}
                             >

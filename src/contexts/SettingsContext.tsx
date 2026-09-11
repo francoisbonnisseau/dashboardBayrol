@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { AppSettings, BotConfig } from '../types';
 import { useAuth } from './AuthContext';
 import { getBotpressConfig } from '@/lib/edgeFunctions';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface SettingsContextType {
   settings: AppSettings;
@@ -47,6 +48,7 @@ function persistNonSensitiveSettings(nextSettings: AppSettings) {
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const { isAuthenticated, sessionToken } = useAuth();
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
 
@@ -131,6 +133,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           })),
     };
 
+    queryClient.clear();
     setSettings(sanitizedSettings);
     persistNonSensitiveSettings(sanitizedSettings);
   };

@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import {
@@ -15,12 +15,12 @@ import {
 } from 'lucide-react';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useBotpressClient } from '@/hooks/useBotpressClient';
+import { usePromptRows, usePromptMutations } from '@/queries/usePromptRows';
 import { cn } from '@/lib/utils';
 import {
   buildPromotionUpdates,
   buildTestingDraftValues,
   getPromptSelectionKey,
-  normalizePromptRow,
   partitionPromptRows,
   type PromptRow,
 } from '@/lib/promptVersions';
@@ -42,6 +42,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+
+const EMPTY_PROMPT_ROWS: PromptRow[] = [];
 
 const TABLE_NAME = 'promptsTable';
 const ALLOWED_PROMPT_BOTS = new Set(['fr', 'de', 'es']);
@@ -267,18 +269,21 @@ export default function PromptManagement() {
     [settings.bots]
   );
   const [selectedBotId, setSelectedBotId] = useState('');
-  const [promptRows, setPromptRows] = useState<PromptRow[]>([]);
   const [selectedPromptKey, setSelectedPromptKey] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<PromptTab>('testing');
   const [draftLabel, setDraftLabel] = useState('');
   const [draftPrompt, setDraftPrompt] = useState('');
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [promotionDialogOpen, setPromotionDialogOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [comparisonOpen, setComparisonOpen] = useState(false);
 
   const client = useBotpressClient(selectedBotId);
+  const promptQuery = usePromptRows(client, settings.workspaceId, selectedBotId);
+  const promptMutations = usePromptMutations(client, settings.workspaceId, selectedBotId);
+  const promptRows = promptQuery.data ?? EMPTY_PROMPT_ROWS;
+  const loading = promptQuery.isLoading;
+  const editorBaseline = useRef<{ scope: string; label: string; prompt: string; server: PromptRow | null } | null>(null);
   const prompts = useMemo(() => partitionPromptRows(promptRows), [promptRows]);
   const selectedLegacyPrompt = useMemo(() => {
     const currentSelection = getPromptBySelectionKey(prompts, selectedPromptKey);
@@ -319,15 +324,18 @@ export default function PromptManagement() {
   }, [promptBots, selectedBotId]);
 
   useEffect(() => {
-    if (prompts.testing) {
-      setDraftLabel(prompts.testing.label);
-      setDraftPrompt(prompts.testing.prompt);
-      return;
-    }
-
-    setDraftLabel('');
-    setDraftPrompt('');
-  }, [prompts.testing]);
+    const scope = settings.workspaceId + ':' + selectedBotId;
+    const baseline = editorBaseline.current;
+    if (baseline?.scope === scope && baseline.server === prompts.testing) return;
+    // A background refresh must not overwrite the user's unsaved editor buffer.
+    if (baseline?.scope === scope && !saving &&
+        (draftLabel !== baseline.label || draftPrompt !== baseline.prompt)) return;
+    const label = prompts.testing?.label ?? '';
+    const prompt = prompts.testing?.prompt ?? '';
+    editorBaseline.current = { scope, label, prompt, server: prompts.testing };
+    setDraftLabel(label);
+    setDraftPrompt(prompt);
+  }, [prompts.testing, settings.workspaceId, selectedBotId, draftLabel, draftPrompt, saving]);
 
   useEffect(() => {
     const currentSelection = getPromptBySelectionKey(prompts, selectedPromptKey);
@@ -363,34 +371,8 @@ export default function PromptManagement() {
   }, [activeTab, prompts, selectedPromptKey]);
 
   useEffect(() => {
-    if (client && selectedBotId) {
-      void loadPrompts();
-    }
-  }, [client, selectedBotId]);
-
-  async function loadPrompts() {
-    if (!client) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await client.findTableRows({
-        table: TABLE_NAME,
-        limit: 100,
-        orderBy: 'updatedAt',
-        orderDirection: 'desc',
-      });
-
-      const rows = response.rows.map((row: Record<string, unknown>) => normalizePromptRow(row));
-      setPromptRows(rows);
-    } catch (error) {
-      console.error('Error loading prompts:', error);
-      toast.error('Failed to load prompts from Botpress');
-    } finally {
-      setLoading(false);
-    }
-  }
+    if (promptQuery.error) toast.error('Failed to load prompts from Botpress');
+  }, [promptQuery.error]);
 
   async function handleCreateTestingDraft() {
     if (!client || prompts.testing) {
@@ -402,12 +384,11 @@ export default function PromptManagement() {
 
     setSaving(true);
     try {
-      await client.createTableRows({
+      await promptMutations.create.mutateAsync({
         table: TABLE_NAME,
         rows: [nextDraft],
       });
       toast.success('Testing draft created');
-      await loadPrompts();
       startTransition(() => {
         setSelectedPromptKey('testing');
         setActiveTab('testing');
@@ -436,7 +417,7 @@ export default function PromptManagement() {
     setSaving(true);
     try {
       if (prompts.testing) {
-        await client.updateTableRows({
+        await promptMutations.update.mutateAsync({
           table: TABLE_NAME,
           rows: [
             {
@@ -449,7 +430,7 @@ export default function PromptManagement() {
           ],
         });
       } else {
-        await client.createTableRows({
+        await promptMutations.create.mutateAsync({
           table: TABLE_NAME,
           rows: [
             {
@@ -463,7 +444,6 @@ export default function PromptManagement() {
       }
 
       toast.success('Testing draft saved');
-      await loadPrompts();
       startTransition(() => {
         setSelectedPromptKey('testing');
         setActiveTab('testing');
@@ -483,7 +463,7 @@ export default function PromptManagement() {
 
     setSaving(true);
     try {
-      await client.updateTableRows({
+      await promptMutations.update.mutateAsync({
         table: TABLE_NAME,
         rows: buildPromotionUpdates({
           live: prompts.live,
@@ -495,7 +475,6 @@ export default function PromptManagement() {
       toast.success('Testing prompt promoted to live');
       setPromotionDialogOpen(false);
       setComparisonOpen(false);
-      await loadPrompts();
       startTransition(() => {
         setSelectedPromptKey('live');
         setActiveTab('live');

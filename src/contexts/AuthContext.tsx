@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { loginWithEdge } from '@/lib/edgeFunctions';
+import { useQueryClient } from '@tanstack/react-query';
 
 export type UserRole = 'user' | 'admin' | null;
 
@@ -14,6 +15,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<UserRole>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
@@ -94,6 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    queryClient.clear();
     setIsAuthenticated(false);
     setUserRole(null);
     setSessionToken(null);

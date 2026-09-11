@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useBotpressClient } from '../hooks/useBotpressClient';
+import { useIntroRows } from '../queries/useKnowledgeRows';
+import type { IntroEntry } from '../api/botpress/knowledge';
 import {
   publishConversationStarters,
   type ConversationStarter,
@@ -20,24 +21,6 @@ import { toast } from 'sonner';
 
 const TABLE_NAME = 'introTable';
 
-interface IntroEntry {
-  id: number;
-  sentence: string;
-  season: string;
-  live: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-interface IntroTableRow {
-  id: number;
-  sentence?: unknown;
-  season?: unknown;
-  live?: unknown;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 interface IntroFormData {
   sentence: string;
   season: string;
@@ -50,9 +33,6 @@ export default function IntroTable() {
   const { settings } = useSettings();
   const { sessionToken } = useAuth();
   const [selectedBotId, setSelectedBotId] = useState<string>('');
-  const [entries, setEntries] = useState<IntroEntry[]>([]);
-  const [loading, setLoading] = useState(false); // loading list
-  const [saving, setSaving] = useState(false);   // add/update in progress
   const [publishing, setPublishing] = useState(false);
   const [publicationPreview, setPublicationPreview] = useState<ConversationStarter[] | null>(null);
   const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
@@ -61,7 +41,13 @@ export default function IntroTable() {
   const [editingEntry, setEditingEntry] = useState<IntroEntry | null>(null);
   const [formData, setFormData] = useState<IntroFormData>({ sentence: '', season: '', live: '' });
 
-  const client = useBotpressClient(selectedBotId);
+  const rowsQuery = useIntroRows(selectedBotId);
+  const { client, saving } = rowsQuery;
+  const entries = rowsQuery.data ?? [];
+  const loading = rowsQuery.isLoading;
+  useEffect(() => {
+    if (rowsQuery.error) toast.error('Failed to load intro entries');
+  }, [rowsQuery.error]);
 
   const availableBots = useMemo(
     () => settings.bots.filter((bot) => publishableBotIds.has(bot.id as ConversationStarterLocale)),
@@ -70,51 +56,12 @@ export default function IntroTable() {
   const selectedBot = availableBots.find((bot) => bot.botId === selectedBotId);
   const selectedLocale = selectedBot?.id as ConversationStarterLocale | undefined;
 
-  const loadEntries = useCallback(async () => {
-    if (!client) return;
-    setLoading(true);
-    try {
-      const response = await client.findTableRows({
-        table: TABLE_NAME,
-        limit: 1000,
-        orderBy: 'createdAt',
-        orderDirection: 'desc'
-      });
-      setEntries(response.rows.map((row: unknown) => {
-        const introRow = row as IntroTableRow;
-        // row.live might be boolean or string; normalize to display string
-        let liveValue = '';
-        if (typeof introRow.live === 'boolean') liveValue = introRow.live ? 'yes' : 'no';
-        else if (typeof introRow.live === 'string') liveValue = introRow.live.toLowerCase();
-        return {
-          id: introRow.id,
-          sentence: typeof introRow.sentence === 'string' ? introRow.sentence : '',
-          season: typeof introRow.season === 'string' ? introRow.season : '',
-          live: liveValue,
-          createdAt: introRow.createdAt,
-          updatedAt: introRow.updatedAt
-        } as IntroEntry;
-      }));
-    } catch (error) {
-      console.error('Error loading intro entries:', error);
-      toast.error('Failed to load intro entries');
-    } finally {
-      setLoading(false);
-    }
-  }, [client]);
-
   useEffect(() => {
     if (!selectedBotId && availableBots.length > 0) {
       const firstBot = availableBots.find(b => b.botId);
       if (firstBot) setSelectedBotId(firstBot.botId);
     }
   }, [availableBots, selectedBotId]);
-
-  useEffect(() => {
-    if (client && selectedBotId) {
-      loadEntries();
-    }
-  }, [client, loadEntries, selectedBotId]);
 
   const resetForm = () => setFormData({ sentence: '', season: '', live: '' });
 
@@ -124,8 +71,7 @@ export default function IntroTable() {
       return;
     }
     try {
-      setSaving(true);
-      await client.createTableRows({
+      await rowsQuery.create.mutateAsync({
         table: TABLE_NAME,
         rows: [{
           sentence: formData.sentence.trim(),
@@ -137,12 +83,9 @@ export default function IntroTable() {
       toast.success('Intro entry added');
       setIsAddDialogOpen(false);
       resetForm();
-      loadEntries();
     } catch (error) {
       console.error('Error adding intro entry:', error);
       toast.error('Failed to add entry');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -152,8 +95,7 @@ export default function IntroTable() {
       return;
     }
     try {
-      setSaving(true);
-      await client.updateTableRows({
+      await rowsQuery.update.mutateAsync({
         table: TABLE_NAME,
         rows: [{
           id: editingEntry.id,
@@ -166,21 +108,17 @@ export default function IntroTable() {
       setIsEditDialogOpen(false);
       setEditingEntry(null);
       resetForm();
-      loadEntries();
     } catch (error) {
       console.error('Error updating intro entry:', error);
       toast.error('Failed to update entry');
-    } finally {
-      setSaving(false);
     }
   };
 
   const handleDelete = async (id: number) => {
     if (!client) return;
     try {
-      await client.deleteTableRows({ table: TABLE_NAME, ids: [id] });
+      await rowsQuery.remove.mutateAsync({ table: TABLE_NAME, ids: [id] });
       toast.success('Intro entry deleted');
-      loadEntries();
     } catch (error) {
       console.error('Error deleting intro entry:', error);
       toast.error('Failed to delete entry');
@@ -282,7 +220,7 @@ export default function IntroTable() {
                   variant="outline"
                   size="sm"
                   onClick={openPublishDialog}
-                  disabled={!client || loading || publishing || !selectedLocale}
+                  disabled={!client || rowsQuery.isFetching || saving || rowsQuery.remove.isPending || publishing || !selectedLocale}
                   className="h-9"
                 >
                   {publishing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
@@ -291,11 +229,11 @@ export default function IntroTable() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => loadEntries()}
-                  disabled={!client || loading || publishing}
+                  onClick={() => void rowsQuery.refetch()}
+                  disabled={!client || rowsQuery.isFetching || publishing}
                   className="h-9"
                 >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`h-4 w-4 mr-2 ${rowsQuery.isFetching ? 'animate-spin' : ''}`} />
                   Refresh
                 </Button>
               </div>
@@ -363,6 +301,9 @@ export default function IntroTable() {
               </div>
             </CardHeader>
             <CardContent>
+              {rowsQuery.isFetching && !loading && (
+                <p className="text-sm text-muted-foreground" role="status">Refreshing...</p>
+              )}
               {loading ? (
                 <div className="text-center py-8">Loading entries...</div>
               ) : entries.length === 0 ? (
@@ -391,7 +332,7 @@ export default function IntroTable() {
                               <Button variant="outline" size="sm" onClick={() => openEditDialog(entry)}>
                                 <Edit2 className="h-4 w-4" />
                               </Button>
-                              <Button variant="outline" size="sm" onClick={() => { if (confirm('Delete this entry?')) handleDelete(entry.id); }}>
+                              <Button variant="outline" size="sm" disabled={rowsQuery.remove.isPending} onClick={() => { if (confirm('Delete this entry?')) handleDelete(entry.id); }}>
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>

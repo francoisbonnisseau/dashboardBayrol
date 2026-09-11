@@ -1,3 +1,5 @@
+import { useFeedbackRows, useFeedbackTable } from '@/queries/useFeedbackRows';
+import { getAllFeedbackRows, type FeedbackRow } from '@/api/botpress/feedbacks';
 import { useState, useEffect, useCallback } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useBotpressClient } from '../hooks/useBotpressClient';
@@ -7,50 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DatePicker } from '@/components/ui/date-picker';
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Download } from 'lucide-react';
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import FeedbackConversationDetail from './FeedbackConversationDetail';
 import { formatBotpressError } from '@/lib/errorMessages';
-
-const TABLE_NAME = 'feedbacksTable';
-
-interface FeedbackRow {
-  id: number;
-  createdAt: string;
-  updatedAt: string;
-  conversationId: string;
-  userId: string;
-  messageId: string;
-  text: string;
-  reaction: 'positive' | 'negative';
-  comment: string;
-  messageDate: string;
-}
-
-interface TableResponse {
-  table: {
-    id: string;
-    name: string;
-    factor: number;
-    frozen: boolean;
-    schema: any;
-    tags: Record<string, any>;
-    isComputeEnabled: boolean;
-    createdAt: string;
-    updatedAt: string;
-  };
-  rows: number;
-  stale: number;
-  indexing: number;
-}
 
 export default function Feedbacks() {
   const { settings } = useSettings();
   const [selectedBotId, setSelectedBotId] = useState<string>('');
-  const [rows, setRows] = useState<FeedbackRow[]>([]);
-  const [tableInfo, setTableInfo] = useState<TableResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   
+  const [currentPage, setCurrentPage] = useState(0);
   // Filter states
   const [reactionFilter, setReactionFilter] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -62,6 +31,16 @@ export default function Feedbacks() {
   
   const client = useBotpressClient(selectedBotId);
   
+  const rowsQuery = useFeedbackRows(client, settings.workspaceId, selectedBotId, {page: currentPage, reaction: reactionFilter, startDate, endDate});
+  const tableQuery = useFeedbackTable(client, settings.workspaceId, selectedBotId);
+  const rows = rowsQuery.data?.rows ?? [];
+  const filteredRows = rows;
+  const hasMore = rowsQuery.data?.hasMore ?? false;
+  const tableInfo = tableQuery.data;
+  const loading = rowsQuery.isFetching || tableQuery.isFetching || exporting;
+  const error = exportError || (rowsQuery.error ? formatBotpressError(rowsQuery.error, 'Failed to fetch rows') : tableQuery.error ? formatBotpressError(tableQuery.error, 'Failed to fetch table information') : null);
+  const fetchTableInfo = () => { void rowsQuery.refetch(); void tableQuery.refetch(); };
+
   // Set default bot if none selected
   useEffect(() => {
     if (!selectedBotId && settings.bots.length > 0) {
@@ -72,95 +51,6 @@ export default function Feedbacks() {
     }
   }, [settings.bots, selectedBotId]);
   
-  // Fetch rows using Botpress client
-  const fetchRows = useCallback(async () => {
-    if (!client) return;
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Build date filter
-      const dateFilter: any = {};
-      if (startDate) {
-        dateFilter.$gte = startDate.toISOString();
-      }
-      if (endDate) {
-        // Set end date to end of day
-        const endOfDay = new Date(endDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        dateFilter.$lte = endOfDay.toISOString();
-      }
-      
-      // Use the client.findTableRows method
-      const { rows } = await client.findTableRows({
-        table: TABLE_NAME,
-        limit: 1000,
-        offset: 0,
-        filter: {
-          // Filter by reaction if needed
-          ...(reactionFilter && { reaction: { $eq: reactionFilter } }),
-          // Filter by date range if needed
-          ...((startDate || endDate) && { messageDate: dateFilter })
-        },
-        orderBy: 'messageDate',
-        orderDirection: 'desc'
-      });
-      
-      // Transform the rows to match our expected format
-      const formattedRows = rows.map((row: any) => ({
-        id: row.id,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        conversationId: row.conversationId || '',
-        userId: row.userId || '',
-        messageId: row.messageId || '',
-        text: row.text || '',
-        reaction: row.reaction || 'positive',
-        comment: row.comment || '',
-        messageDate: row.messageDate || row.createdAt
-      }));
-      
-      setRows(formattedRows);
-    } catch (err) {
-      setError(formatBotpressError(err, 'Failed to fetch feedbacks'));
-      console.error('Error fetching feedbacks:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [client, reactionFilter, startDate, endDate]);
-  
-  // Fetch table information
-  const fetchTableInfo = useCallback(async () => {
-    if (!client) return;
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Use the client directly to get table information
-      const data = await client.getTable({
-        table: TABLE_NAME
-      });
-      setTableInfo(data as TableResponse);
-      
-      // Now fetch rows
-      await fetchRows();
-    } catch (err) {
-      setError(formatBotpressError(err, 'Failed to fetch table information'));
-      console.error('Error fetching table info:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [client, fetchRows]);
-
-  // Fetch data when client or filters change
-  useEffect(() => {
-    if (client) {
-      fetchRows();
-    }
-  }, [client, fetchRows, reactionFilter, startDate, endDate]);
-
   // Format date
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -172,33 +62,6 @@ export default function Feedbacks() {
       minute: '2-digit'
     });
   };
-
-  // Filtered rows based on reaction and date range
-  const filteredRows = rows.filter(row => {
-    // Apply reaction filter if selected
-    if (reactionFilter && row.reaction !== reactionFilter) {
-      return false;
-    }
-    
-    // Apply date range filter
-    if (startDate || endDate) {
-      const rowDate = new Date(row.messageDate);
-      
-      if (startDate && rowDate < startDate) {
-        return false;
-      }
-      
-      if (endDate) {
-        const endOfDay = new Date(endDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        if (rowDate > endOfDay) {
-          return false;
-        }
-      }
-    }
-    
-    return true;
-  });
 
   // Get color based on reaction
   const getReactionColor = (reaction: string) => {
@@ -232,13 +95,15 @@ export default function Feedbacks() {
 
   // Download feedbacks in JSON format
   const downloadFeedbacks = useCallback(async () => {
-    if (filteredRows.length === 0) return;
+    if (!client) return;
     
-    setLoading(true);
+    setExporting(true);
+    setExportError(null);
     
     try {
+      const exportRows = await getAllFeedbackRows(client, {reaction: reactionFilter, startDate, endDate});
       // Create JSON content
-      const jsonContent = JSON.stringify(filteredRows, null, 2);
+      const jsonContent = JSON.stringify(exportRows, null, 2);
       
       // Create and download file
       const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
@@ -274,11 +139,12 @@ export default function Feedbacks() {
       URL.revokeObjectURL(url);
       
     } catch (error) {
+      setExportError(formatBotpressError(error, 'Failed to export data'));
       console.error('Error downloading feedbacks:', error);
     } finally {
-      setLoading(false);
+      setExporting(false);
     }
-  }, [filteredRows, reactionFilter, startDate, endDate]);
+  }, [client, reactionFilter, startDate, endDate]);
 
   if (!settings.bots.some(bot => bot.botId)) {
     return (
@@ -302,7 +168,7 @@ export default function Feedbacks() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <span className="text-sm font-medium text-muted-foreground">Bot:</span>
-                <Select value={selectedBotId} onValueChange={setSelectedBotId}>
+                <Select value={selectedBotId} onValueChange={(botId) => { setCurrentPage(0); setSelectedFeedback(null); setSelectedBotId(botId); }}>
                   <SelectTrigger className="w-[180px] h-9">
                     <SelectValue placeholder="Select a bot" />
                   </SelectTrigger>
@@ -321,12 +187,12 @@ export default function Feedbacks() {
               <div className="flex items-center gap-2">
                 <Button
                   onClick={downloadFeedbacks}
-                  disabled={loading || !client || filteredRows.length === 0}
+                  disabled={loading || !client || (!hasMore && filteredRows.length === 0)}
                   size="sm"
                   variant="outline"
                 >
                   <Download className="h-4 w-4 mr-2" />
-                  Export ({filteredRows.length})
+                  {exporting ? 'Exporting…' : 'Export'}
                 </Button>
                 <Button
                   onClick={fetchTableInfo}
@@ -351,7 +217,7 @@ export default function Feedbacks() {
                 </label>
                 <Select 
                   value={reactionFilter || 'all'} 
-                  onValueChange={(value) => setReactionFilter(value === 'all' ? null : value)}
+                  onValueChange={(value) => { setCurrentPage(0); setReactionFilter(value === 'all' ? null : value); }}
                 >
                   <SelectTrigger className="w-[140px] h-9">
                     <SelectValue placeholder="All" />
@@ -382,14 +248,14 @@ export default function Feedbacks() {
                 <div className="flex items-center gap-2">
                   <DatePicker
                     date={startDate}
-                    setDate={setStartDate}
+                    setDate={(date) => { setCurrentPage(0); setStartDate(date); }}
                     placeholder="Start"
                     className="w-[140px]"
                   />
                   <span className="text-muted-foreground">→</span>
                   <DatePicker
                     date={endDate}
-                    setDate={setEndDate}
+                    setDate={(date) => { setCurrentPage(0); setEndDate(date); }}
                     placeholder="End"
                     className="w-[140px]"
                   />
@@ -400,6 +266,7 @@ export default function Feedbacks() {
               {(startDate || endDate || reactionFilter) && (
                 <Button
                   onClick={() => {
+                    setCurrentPage(0);
                     setStartDate(undefined);
                     setEndDate(undefined);
                     setReactionFilter(null);
@@ -437,6 +304,11 @@ export default function Feedbacks() {
             <Card>
               <CardContent className="pt-6 text-center text-muted-foreground">
                 {!client ? 'Select a bot to view feedbacks' : loading ? 'Loading data...' : 'No feedback data found'}
+                {currentPage > 0 && (
+                  <Button className="ml-3" variant="outline" size="sm" onClick={() => setCurrentPage(page => Math.max(0, page - 1))} disabled={loading}>
+                    <ChevronLeft className="mr-2 h-4 w-4" />Previous
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : (
@@ -476,6 +348,15 @@ export default function Feedbacks() {
                   ))}
                 </TableBody>
               </Table>
+              <div className="flex items-center justify-between border-t px-4 py-3">
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(page => Math.max(0, page - 1))} disabled={loading || currentPage === 0}>
+                  <ChevronLeft className="mr-2 h-4 w-4" />Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">Page {currentPage + 1}</span>
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(page => page + 1)} disabled={loading || !hasMore}>
+                  Next<ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </div>

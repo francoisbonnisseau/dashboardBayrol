@@ -11,7 +11,7 @@ test('builds a lightweight first-page query with server-side filters', () => {
     endDate: new Date('2026-06-08T10:00:00.000Z'),
   });
 
-  assert.equal(query.limit, 1000);
+  assert.equal(query.limit, 100);
   assert.equal(query.offset, 0);
   assert.deepEqual(query.select, [
     'date',
@@ -41,6 +41,11 @@ test('uses the page to calculate offset and omits inactive filters', () => {
     endDate: undefined,
   });
 
-  assert.equal(query.offset, 3000);
+  assert.equal(query.offset, 300);
   assert.deepEqual(query.filter, {});
+});
+
+test('export can use a larger page size independently of the list default', () => {
+ const query = buildSentimentRowsQuery({page:2,pageSize:1000,sentiment:null,showResolved:true,startDate:undefined,endDate:undefined});
+ assert.equal(query.limit,1000); assert.equal(query.offset,2000);
 });

@@ -1,18 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
-import ConversationsList from './components/ConversationsList';
-import SentimentAnalysis from './components/SentimentAnalysis';
-import Feedbacks from './components/Feedbacks';
-import Analysis from './components/Analysis';
-import Analytics from './components/Analytics';
-import Learnings from './components/Learnings';
-import IntroTable from './components/IntroTable';
-import CodeTextTable from './components/CodeTextTable';
-import PromptManagement from './components/PromptManagement';
-import ModelTesting from './components/ModelTesting';
-import Settings from './components/Settings';
 import LoginPage from './components/LoginPage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +9,18 @@ import { Settings as SettingsIcon } from 'lucide-react';
 import { Toaster } from 'sonner';
 import type { DashboardView } from '@/types/views';
 import './App.css';
+
+const ConversationsList = lazy(() => import('./components/ConversationsList'));
+const SentimentAnalysis = lazy(() => import('./components/SentimentAnalysis'));
+const Feedbacks = lazy(() => import('./components/Feedbacks'));
+const Analysis = lazy(() => import('./components/Analysis'));
+const Analytics = lazy(() => import('./components/Analytics'));
+const Learnings = lazy(() => import('./components/Learnings'));
+const IntroTable = lazy(() => import('./components/IntroTable'));
+const CodeTextTable = lazy(() => import('./components/CodeTextTable'));
+const PromptManagement = lazy(() => import('./components/PromptManagement'));
+const ModelTesting = lazy(() => import('./components/ModelTesting'));
+const Settings = lazy(() => import('./components/Settings'));
 
 function AppContent() {
   const [activeView, setActiveView] = useState<DashboardView>('sentiment');
@@ -49,6 +50,7 @@ function AppContent() {
         userRole={userRole} 
         onLogout={logout} 
       >
+        <Suspense fallback={<div className="p-6 text-muted-foreground" role="status">Loading…</div>}>
         {activeView === 'settings' && <Settings />}
         {activeView === 'analysis' && isConfigured && userRole === 'admin' && <Analysis />}
         {activeView === 'analytics' && isConfigured && <Analytics />}
@@ -119,6 +121,7 @@ function AppContent() {
           </div>
         )}
         {activeView === 'conversations' && isConfigured && <ConversationsList />}
+        </Suspense>
       </Layout>
     </>
   );
