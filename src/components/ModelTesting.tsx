@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Bot, Loader2, Plus, Send } from 'lucide-react';
+import { AlertCircle, Bot, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useBotpressClient } from '@/hooks/useBotpressClient';
@@ -51,7 +51,6 @@ import {
   PageTabList,
   PageTabPanel,
   Toolbar,
-  EditorSurface,
   SplitPane,
   EmptyState,
   ErrorState,
@@ -67,7 +66,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -401,9 +399,10 @@ function formatTime(isoDate: string) {
 
 function UserMessage({ text, createdAt }: { text: string; createdAt: string }) {
   return (
-    <EditorSurface title="User message" footer={formatTime(createdAt)}>
-      <p className="whitespace-pre-wrap p-3">{text}</p>
-    </EditorSurface>
+    <div className="flex flex-col items-end gap-2 pl-8 sm:pl-16">
+      <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl bg-muted px-5 py-3 text-[15px] leading-7">{text}</p>
+      <span className="pr-2 text-[11px] text-muted-foreground">You · {formatTime(createdAt)}</span>
+    </div>
   );
 }
 
@@ -494,6 +493,8 @@ export default function ModelTesting() {
   });
   const [running, setRunning] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const conversationRef = useRef<HTMLDivElement | null>(null);
+  const followConversationRef = useRef(true);
   const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousModelSelectionRef = useRef<{
     modelA: string;
@@ -886,10 +887,8 @@ export default function ModelTesting() {
   }, [selectedBotId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'end',
-    });
+    const node = conversationRef.current;
+    if (node && followConversationRef.current) node.scrollTop = node.scrollHeight;
   }, [turns]);
 
   useEffect(() => {
@@ -1555,6 +1554,7 @@ export default function ModelTesting() {
       return;
     }
 
+    followConversationRef.current = true;
     setRunning(true);
     setUserMessage('');
     try {
@@ -1698,29 +1698,12 @@ export default function ModelTesting() {
           </Toolbar>
         </PageTabPanel>
       </PageTabs>
-      <section className="min-h-0 px-1">
+      <section aria-label="Conversation" className="min-h-0">
         <div className="min-w-0 min-h-0">
           <div className="flex min-w-0 flex-col">
-            <div className="px-4 py-4">
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="px-1 pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
-                  <Badge variant="info">
-                    A: {getPrettyModelName(selectedModelAData)}
-                  </Badge>
-                  {comparisonEnabled && (
-                    <Badge variant="neutral">
-                      B: {getPrettyModelName(selectedModelBData)}
-                    </Badge>
-                  )}
-                  <Badge
-                    variant="neutral"
-                    className="border-border bg-muted text-foreground"
-                  >
-                    Decision:{' '}
-                    {getPrettyModelName(
-                      models.find((model) => model.id === selectedCheapModel),
-                    )}
-                  </Badge>
                   <Badge
                     variant="neutral"
                     className="max-w-[260px] truncate border-border bg-surface text-foreground"
@@ -1744,34 +1727,16 @@ export default function ModelTesting() {
               </div>
             </div>
 
-            <TestComposer
-              value={userMessage}
-              onChange={setUserMessage}
-              onRun={() => void handleRun()}
-              running={running}
-              compare={comparisonEnabled}
-              disabled={
-                running ||
-                modelsLoading ||
-                !userMessage.trim() ||
-                !selectedModelA ||
-                !selectedPrompt?.prompt ||
-                (comparisonEnabled &&
-                  (!selectedModelB || selectedModelA === selectedModelB))
-              }
-            />
-            <h2 className="mt-6 text-base font-semibold">Responses</h2>
-            <ScrollArea className="max-h-[70vh] border-t">
-              <div className="space-y-5 px-4 py-4">
+            <div ref={conversationRef} onScroll={(event) => {
+              const node = event.currentTarget;
+              followConversationRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 100;
+            }} role="region" aria-label="Conversation messages" tabIndex={0} className="h-[55dvh] min-h-[280px] overflow-y-auto overscroll-contain">
+              <div className={`mx-auto space-y-10 px-2 py-8 sm:px-6 ${comparisonEnabled ? 'max-w-6xl' : 'max-w-3xl'}`}>
                 {turns.length === 0 ? (
-                  <div className="flex min-h-[160px] items-center justify-center">
+                  <div className="flex min-h-[30dvh] items-center justify-center">
                     <div className="max-w-md text-center">
                       <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full border border-border bg-surface text-muted-foreground">
-                        {comparisonEnabled ? (
-                          <Bot className="size-5" />
-                        ) : (
-                          <Send className="size-5" />
-                        )}
+                        <Bot className="size-5" />
                       </div>
                       <p className="text-lg font-medium text-foreground">
                         {comparisonEnabled
@@ -1779,7 +1744,7 @@ export default function ModelTesting() {
                           : 'Start a conversation'}
                       </p>
                       <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                        Write a user message above, then{' '}
+                        Write a message below, then{' '}
                         {comparisonEnabled
                           ? 'run both models in parallel.'
                           : 'test the selected model.'}
@@ -1788,7 +1753,7 @@ export default function ModelTesting() {
                   </div>
                 ) : (
                   turns.map((turn) => (
-                    <article key={turn.id} className="space-y-4">
+                    <article key={turn.id} className="space-y-6">
                       <UserMessage
                         text={turn.userText}
                         createdAt={turn.createdAt}
@@ -1820,7 +1785,25 @@ export default function ModelTesting() {
                 )}
                 <div ref={messagesEndRef} />
               </div>
-            </ScrollArea>
+            </div>
+            <div className={`mx-auto w-full px-2 pt-4 sm:px-6 ${comparisonEnabled ? 'max-w-6xl' : 'max-w-3xl'}`}>
+            <TestComposer
+              value={userMessage}
+              onChange={setUserMessage}
+              onRun={() => void handleRun()}
+              running={running}
+              compare={comparisonEnabled}
+              disabled={
+                running ||
+                modelsLoading ||
+                !userMessage.trim() ||
+                !selectedModelA ||
+                !selectedPrompt?.prompt ||
+                (comparisonEnabled &&
+                  (!selectedModelB || selectedModelA === selectedModelB))
+              }
+            />
+            </div>
           </div>
         </div>
       </section>

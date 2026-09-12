@@ -6,7 +6,7 @@ import type { ModelResponse, ModelResponseStep } from '@/types/modelTesting';
 import { cn } from '@/lib/utils';
 import { getProviderFromModelId } from '@/lib/modelTestingPushLive';
 import { LoadingState, StatusBadge as Badge } from '@/components/dashboard';
-import { StructuredResponseContent } from '@/components/StructuredResponseContent';
+import { MarkdownText, StructuredResponseContent } from '@/components/StructuredResponseContent';
 import { ResponseMetrics } from './ResponseMetrics';
 function getProviderLabel(provider: string) {
   switch (provider) {
@@ -115,7 +115,7 @@ function ToolCallStep({ step }: { step: ModelResponseStep }) {
   const inputLabel = step.toolInput ? 'Executed input' : 'Requested input';
 
   return (
-    <details className="rounded-lg border border-border bg-muted px-3 py-3">
+    <details className="rounded-lg border border-border bg-surface-subtle px-3 py-2">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
         <div className="min-w-0">
           <span className="text-sm font-medium text-foreground">Tool call</span>
@@ -226,7 +226,7 @@ export function ResponsePanel({
 
   return (
     <section className="min-w-0">
-      <div className="flex items-center justify-between gap-3 px-4 py-4">
+      <div className="flex items-center justify-between gap-3 pb-4">
         <div className="flex items-center gap-3 min-w-0">
           <span className="truncate text-sm font-medium text-foreground">
             {title}
@@ -240,7 +240,7 @@ export function ResponsePanel({
         </Badge>
       </div>
 
-      <div className="px-4 pb-4">
+      <div className="min-w-0 break-words pb-4 [&_.message-markdown]:text-[15px] [&_.message-markdown]:leading-7 [&_pre]:overflow-x-auto">
         <div className="space-y-4 text-[15px] leading-7 text-foreground">
           {steps.length > 0 ? (
             steps.map((step) =>
@@ -261,7 +261,7 @@ export function ResponsePanel({
                       : 'text-foreground',
                   )}
                 >
-                  {step.text}
+                  <MarkdownText text={step.text || ''} />
                 </div>
               ),
             )
@@ -279,11 +279,11 @@ export function ResponsePanel({
                 className={cn(
                   'whitespace-pre-wrap',
                   index < messages.length - 1
-                    ? 'border-l-2 border-border pl-3 text-muted-foreground'
+                    ? 'text-muted-foreground'
                     : 'text-foreground',
                 )}
               >
-                {message}
+                <MarkdownText text={message} />
               </div>
             ))
           ) : response.error ? (
@@ -308,7 +308,10 @@ export function ResponsePanel({
         </div>
       </div>
 
-      <ResponseMetrics response={response} />
+      <details className="text-xs text-muted-foreground">
+        <summary className="w-fit cursor-pointer rounded py-1 focus-visible:outline-ring">Response details</summary>
+        <ResponseMetrics response={response} />
+      </details>
     </section>
   );
 }
