@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { format } from 'date-fns';
-import { MessageSquare, Users, Coins } from 'lucide-react';
+import { MessageCircle, MessageSquare, Coins } from 'lucide-react';
 import {
   EmptyState,
   Metric,
@@ -98,9 +98,9 @@ export function AnalyticsOverview({ data }: { data: AnalyticsData }) {
               value={summary.totalConversations.toLocaleString()}
             />
             <Metric
-              label="Users"
-              icon={<Users />}
-              value={summary.totalUsers.toLocaleString()}
+              label="User messages"
+              icon={<MessageCircle />}
+              value={summary.totalUserMessages.toLocaleString()}
             />
             <Metric
               label="AI cost / conversation"
