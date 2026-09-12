@@ -1320,6 +1320,8 @@ export default function ModelTesting() {
   }
 
   function clearConversation() {
+    followConversationRef.current = true;
+    document.getElementById('model-testing-message')?.focus({ preventScroll: true });
     setTurns([]);
     setSingleHistory([]);
     setCompareHistory({ modelA: [], modelB: [] });
@@ -1583,7 +1585,18 @@ export default function ModelTesting() {
     );
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col">
+      <div
+        ref={conversationRef}
+        onScroll={(event) => {
+          const node = event.currentTarget;
+          followConversationRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 100;
+        }}
+        role="region"
+        aria-label="Conversation workspace"
+        tabIndex={0}
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain"
+      >
       <PageHeader
         title="Model Testing"
         description="Test prompts and compare model responses"
@@ -1727,13 +1740,10 @@ export default function ModelTesting() {
               </div>
             </div>
 
-            <div ref={conversationRef} onScroll={(event) => {
-              const node = event.currentTarget;
-              followConversationRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 100;
-            }} role="region" aria-label="Conversation messages" tabIndex={0} className="h-[55dvh] min-h-[280px] overflow-y-auto overscroll-contain">
+            <div aria-label="Conversation messages">
               <div className={`mx-auto space-y-10 px-2 py-8 sm:px-6 ${comparisonEnabled ? 'max-w-6xl' : 'max-w-3xl'}`}>
                 {turns.length === 0 ? (
-                  <div className="flex min-h-[30dvh] items-center justify-center">
+                  <div className="flex min-h-32 items-center justify-center">
                     <div className="max-w-md text-center">
                       <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full border border-border bg-surface text-muted-foreground">
                         <Bot className="size-5" />
@@ -1786,7 +1796,12 @@ export default function ModelTesting() {
                 <div ref={messagesEndRef} />
               </div>
             </div>
-            <div className={`mx-auto w-full px-2 pt-4 sm:px-6 ${comparisonEnabled ? 'max-w-6xl' : 'max-w-3xl'}`}>
+
+          </div>
+        </div>
+      </section>
+      </div>
+            <div className={`mx-auto w-full shrink-0 bg-background px-2 pt-3 sm:px-6 ${comparisonEnabled ? 'max-w-6xl' : 'max-w-3xl'}`}>
             <TestComposer
               value={userMessage}
               onChange={setUserMessage}
@@ -1804,9 +1819,6 @@ export default function ModelTesting() {
               }
             />
             </div>
-          </div>
-        </div>
-      </section>
 
       <Dialog
         open={testSettingsOpen}

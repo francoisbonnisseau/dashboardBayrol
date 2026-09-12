@@ -24,6 +24,7 @@ export function TestComposer({
     <form onSubmit={(event) => { event.preventDefault(); if (!disabled) onRun(); }}>
       <div className="rounded-2xl border border-input bg-surface p-3 transition-colors focus-within:border-ring">
         <Textarea
+          id="model-testing-message"
           ref={inputRef}
           aria-label="User message"
           value={value}

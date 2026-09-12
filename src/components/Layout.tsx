@@ -30,7 +30,7 @@ export default function Layout({
   onLogout 
 }: LayoutProps) {
   return (
-    <SidebarProvider>
+    <SidebarProvider className={activeView === 'testModels' ? 'h-dvh min-h-0 overflow-hidden' : undefined}>
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-background focus:p-3">Skip to content</a>
       <AppSidebar 
         activeView={activeView}
@@ -38,14 +38,14 @@ export default function Layout({
         userRole={userRole}
         onLogout={onLogout}
       />
-      <SidebarInset className="min-w-0">
+      <SidebarInset className={`min-w-0 ${activeView === 'testModels' ? 'min-h-0 overflow-hidden' : ''}`}>
         <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <p className="text-sm font-medium capitalize">{viewLabels[activeView as keyof typeof viewLabels] || activeView}</p>
         </header>
-        <div id="main-content" tabIndex={-1} className={`min-w-0 flex-1 ${activeView === 'analytics' ? 'bg-surface-subtle' : 'bg-background'}`}>
-          <PageShell width={activeView === 'testModels' || activeView === 'testPrompts' ? 'full' : 'wide'}>
+        <div id="main-content" tabIndex={-1} className={`min-w-0 flex-1 ${activeView === 'testModels' ? 'min-h-0 overflow-hidden' : ''} ${activeView === 'analytics' ? 'bg-surface-subtle' : 'bg-background'}`}>
+          <PageShell className={activeView === 'testModels' ? 'h-full min-h-0' : undefined} width={activeView === 'testModels' || activeView === 'testPrompts' ? 'full' : 'wide'}>
             {children}
           </PageShell>
         </div>
