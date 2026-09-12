@@ -2,15 +2,42 @@ import { useState, useEffect } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useLearnings } from '../queries/useKnowledgeRows';
 import type { LearningEntry } from '../api/botpress/knowledge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  PageHeader,
+  FilterBar,
+  DataTableShell,
+  EmptyState,
+  ErrorState,
+} from '@/components/dashboard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -22,6 +49,7 @@ interface LearningFormData {
 
 export default function Learnings() {
   const { settings } = useSettings();
+  const [search, setSearch] = useState('');
   const [selectedBotId, setSelectedBotId] = useState<string>('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -29,13 +57,17 @@ export default function Learnings() {
   const [formData, setFormData] = useState<LearningFormData>({
     question: '',
     answer: '',
-    tags: []
+    tags: [],
   });
   const [newTag, setNewTag] = useState('');
 
   const rowsQuery = useLearnings(selectedBotId);
-  const { client, saving } = rowsQuery;
+  const { client } = rowsQuery;
+  const saving = rowsQuery.saving || rowsQuery.remove.isPending;
   const learnings = rowsQuery.data ?? [];
+  const visibleEntries = learnings.filter((entry) =>
+    JSON.stringify(entry).toLowerCase().includes(search.toLowerCase()),
+  );
   const loading = rowsQuery.isLoading;
   useEffect(() => {
     if (rowsQuery.error) toast.error('Failed to load learnings');
@@ -54,9 +86,9 @@ export default function Learnings() {
           {
             question: formData.question.trim(),
             answer: formData.answer.trim(),
-            tags: formData.tags
-          }
-        ]
+            tags: formData.tags,
+          },
+        ],
       });
 
       toast.success('Learning entry added successfully');
@@ -69,7 +101,12 @@ export default function Learnings() {
   };
 
   const handleEditEntry = async () => {
-    if (!client || !editingEntry || !formData.question.trim() || !formData.answer.trim()) {
+    if (
+      !client ||
+      !editingEntry ||
+      !formData.question.trim() ||
+      !formData.answer.trim()
+    ) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -82,9 +119,9 @@ export default function Learnings() {
             id: editingEntry.id,
             question: formData.question.trim(),
             answer: formData.answer.trim(),
-            tags: formData.tags
-          }
-        ]
+            tags: formData.tags,
+          },
+        ],
       });
 
       toast.success('Learning entry updated successfully');
@@ -103,7 +140,7 @@ export default function Learnings() {
     try {
       await rowsQuery.remove.mutateAsync({
         table: 'learningsTable',
-        ids: [id]
+        ids: [id],
       });
 
       toast.success('Learning entry deleted successfully');
@@ -117,7 +154,7 @@ export default function Learnings() {
     setFormData({
       question: '',
       answer: '',
-      tags: []
+      tags: [],
     });
     setNewTag('');
   };
@@ -127,25 +164,25 @@ export default function Learnings() {
     setFormData({
       question: entry.question,
       answer: entry.answer,
-      tags: entry.tags || []
+      tags: entry.tags || [],
     });
     setIsEditDialogOpen(true);
   };
 
   const addTag = () => {
     if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        tags: [...prev.tags, newTag.trim()]
+        tags: [...prev.tags, newTag.trim()],
       }));
       setNewTag('');
     }
   };
 
   const removeTag = (tagToRemove: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove)
+      tags: prev.tags.filter((tag) => tag !== tagToRemove),
     }));
   };
 
@@ -156,290 +193,385 @@ export default function Learnings() {
     }
   };
 
-  if (!settings.token || !settings.workspaceId || settings.bots.length === 0) {
+  if (!settings.token || !settings.workspaceId || settings.bots.length === 0)
     return (
-      <div className="flex justify-center w-full px-6 py-12">
-        <div className="w-full max-w-4xl">
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl">Configuration Required</CardTitle>
-              <CardDescription>
-                Please configure your Botpress workspace and bots to manage learnings
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        </div>
-      </div>
+      <>
+        <PageHeader title="Learnings" />
+        <EmptyState
+          title="Configuration required"
+          description="Configure your workspace and bots in Settings."
+        />
+      </>
     );
-  }
-
   return (
-    <div className="w-full px-6 py-4 space-y-4">
+    <>
+      <PageHeader title="Learnings" />
       {/* Header Card */}
-      <Card>
-        <CardContent className="pt-4 pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-muted-foreground">Bot:</span>
-              <Select value={selectedBotId} onValueChange={setSelectedBotId}>
-                <SelectTrigger className="w-[180px] h-9">
-                  <SelectValue placeholder="Select a bot" />
-                </SelectTrigger>
-                <SelectContent>
-                  {settings.bots.filter((bot) => bot.botId).map((bot) => (
+      <FilterBar>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-muted-foreground">
+              Bot:
+            </span>
+            <Select
+              value={selectedBotId}
+              onValueChange={setSelectedBotId}
+              disabled={saving}
+            >
+              <SelectTrigger aria-label="Bot" className="w-[180px] h-9">
+                <SelectValue placeholder="Select a bot" />
+              </SelectTrigger>
+              <SelectContent>
+                {settings.bots
+                  .filter((bot) => bot.botId)
+                  .map((bot) => (
                     <SelectItem key={bot.id} value={bot.botId}>
                       {bot.name}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Manage questions, answers, and tags
-            </p>
+              </SelectContent>
+            </Select>
           </div>
-        </CardContent>
-      </Card>
+          <p className="text-sm text-muted-foreground">
+            Manage questions, answers, and tags
+          </p>
+        </div>
+        <Input
+          disabled={saving}
+          aria-label="Search Learnings"
+          placeholder="Search…"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          className="w-full sm:w-[240px]"
+        />
+      </FilterBar>
 
       {selectedBotId && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Learning Entries</CardTitle>
-                  <CardDescription>
-                    Manage questions, answers, and tags for the selected bot
-                  </CardDescription>
-                </div>
-                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button onClick={() => resetForm()}>
-                      <Plus className="h-4 w-4 mr-2" />
+        <section className="space-y-4">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold">Learning Entries</h2>
+                <p className="text-sm text-muted-foreground">
+                  Manage questions, answers, and tags for the selected bot
+                </p>
+              </div>
+              <Dialog
+                open={isAddDialogOpen}
+                onOpenChange={(open) => !saving && setIsAddDialogOpen(open)}
+              >
+                <DialogTrigger asChild>
+                  <Button disabled={saving} onClick={() => resetForm()}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Entry
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl bg-surface max-h-[90dvh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Add Learning Entry</DialogTitle>
+                    <DialogDescription>
+                      Create a new question-answer pair with optional tags
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="question">Question *</Label>
+                      <Textarea
+                        disabled={saving}
+                        id="question"
+                        placeholder="Enter the question..."
+                        value={formData.question}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            question: e.target.value,
+                          }))
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="answer">Answer *</Label>
+                      <Textarea
+                        disabled={saving}
+                        id="answer"
+                        placeholder="Enter the answer..."
+                        value={formData.answer}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            answer: e.target.value,
+                          }))
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="tags">Tags</Label>
+                      <div className="flex gap-2 mt-1">
+                        <Input
+                          disabled={saving}
+                          id="tags"
+                          placeholder="Add a tag..."
+                          value={newTag}
+                          onChange={(e) => setNewTag(e.target.value)}
+                          onKeyPress={handleKeyPress}
+                          className="flex-1"
+                        />
+                        <Button type="button" onClick={addTag} size="sm">
+                          Add
+                        </Button>
+                      </div>
+                      {formData.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {formData.tags.map((tag, index) => (
+                            <Badge
+                              key={index}
+                              variant="secondary"
+                              className="flex items-center gap-1"
+                            >
+                              {tag}
+                              <button
+                                type="button"
+                                aria-label={'Remove tag ' + tag}
+                                onClick={() => removeTag(tag)}
+                              >
+                                <X className="size-3" />
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      disabled={saving}
+                      variant="outline"
+                      onClick={() => setIsAddDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddEntry} disabled={saving}>
+                      <Save className="h-4 w-4 mr-2" />
                       Add Entry
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl bg-white">
-                    <DialogHeader>
-                      <DialogTitle>Add Learning Entry</DialogTitle>
-                      <DialogDescription>
-                        Create a new question-answer pair with optional tags
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="question">Question *</Label>
-                        <Textarea
-                          id="question"
-                          placeholder="Enter the question..."
-                          value={formData.question}
-                          onChange={(e) => setFormData(prev => ({ ...prev, question: e.target.value }))}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="answer">Answer *</Label>
-                        <Textarea
-                          id="answer"
-                          placeholder="Enter the answer..."
-                          value={formData.answer}
-                          onChange={(e) => setFormData(prev => ({ ...prev, answer: e.target.value }))}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="tags">Tags</Label>
-                        <div className="flex gap-2 mt-1">
-                          <Input
-                            id="tags"
-                            placeholder="Add a tag..."
-                            value={newTag}
-                            onChange={(e) => setNewTag(e.target.value)}
-                            onKeyPress={handleKeyPress}
-                            className="flex-1"
-                          />
-                          <Button type="button" onClick={addTag} size="sm">
-                            Add
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+          <DataTableShell
+            label="Learnings"
+            empty={!visibleEntries.length}
+            emptyState={
+              <EmptyState
+                title={search ? 'No matching entries' : 'No entries yet'}
+                description={
+                  search
+                    ? 'Try another search.'
+                    : 'Add an entry to get started.'
+                }
+                action={
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (search) setSearch('');
+                      else {
+                        resetForm();
+                        setIsAddDialogOpen(true);
+                      }
+                    }}
+                  >
+                    {search ? 'Clear search' : 'Add entry'}
+                  </Button>
+                }
+              />
+            }
+            loading={loading}
+            refreshing={rowsQuery.isFetching && !loading}
+            error={
+              rowsQuery.error && !rowsQuery.data ? (
+                <ErrorState
+                  title="Unable to load entries"
+                  onRetry={() => void rowsQuery.refetch()}
+                />
+              ) : undefined
+            }
+          >
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Question</TableHead>
+                    <TableHead>Answer</TableHead>
+                    <TableHead>Tags</TableHead>
+                    <TableHead>Updated</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visibleEntries.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell className="max-w-xs">
+                        <div className="truncate" title={entry.question}>
+                          {entry.question}
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-xs">
+                        <div className="truncate" title={entry.answer}>
+                          {entry.answer}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {entry.tags?.map((tag, index) => (
+                            <Badge
+                              key={index}
+                              variant="outline"
+                              className="text-xs"
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {new Date(
+                          entry.updatedAt || entry.createdAt,
+                        ).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label="Edit entry"
+                            disabled={saving}
+                            onClick={() => openEditDialog(entry)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label="Delete entry"
+                            disabled={saving}
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  'Are you sure you want to delete this entry?',
+                                )
+                              ) {
+                                handleDeleteEntry(entry.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                        {formData.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {formData.tags.map((tag, index) => (
-                              <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                                {tag}
-                                <X
-                                  className="h-3 w-3 cursor-pointer"
-                                  onClick={() => removeTag(tag)}
-                                />
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleAddEntry} disabled={saving}>
-                        <Save className="h-4 w-4 mr-2" />
-                        Add Entry
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {rowsQuery.isFetching && !loading && (
-                <p className="text-sm text-muted-foreground" role="status">Refreshing...</p>
-              )}
-              {loading ? (
-                <div className="text-center py-8">Loading learnings...</div>
-              ) : learnings.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No learning entries found. Add your first entry to get started.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Question</TableHead>
-                        <TableHead>Answer</TableHead>
-                        <TableHead>Tags</TableHead>
-                        <TableHead>Created</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {learnings.map((entry) => (
-                        <TableRow key={entry.id}>
-                          <TableCell className="max-w-xs">
-                            <div className="truncate" title={entry.question}>
-                              {entry.question}
-                            </div>
-                          </TableCell>
-                          <TableCell className="max-w-xs">
-                            <div className="truncate" title={entry.answer}>
-                              {entry.answer}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {entry.tags?.map((tag, index) => (
-                                <Badge key={index} variant="outline" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {new Date(entry.createdAt).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex gap-2 justify-end">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openEditDialog(entry)}
-                              >
-                                <Edit2 className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={rowsQuery.remove.isPending}
-                                onClick={() => {
-                                  if (confirm('Are you sure you want to delete this entry?')) {
-                                    handleDeleteEntry(entry.id);
-                                  }
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-2xl bg-white">
-            <DialogHeader>
-              <DialogTitle>Edit Learning Entry</DialogTitle>
-              <DialogDescription>
-                Update the question-answer pair and tags
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="edit-question">Question *</Label>
-                <Textarea
-                  id="edit-question"
-                  placeholder="Enter the question..."
-                  value={formData.question}
-                  onChange={(e) => setFormData(prev => ({ ...prev, question: e.target.value }))}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-answer">Answer *</Label>
-                <Textarea
-                  id="edit-answer"
-                  placeholder="Enter the answer..."
-                  value={formData.answer}
-                  onChange={(e) => setFormData(prev => ({ ...prev, answer: e.target.value }))}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-tags">Tags</Label>
-                <div className="flex gap-2 mt-1">
-                  <Input
-                    id="edit-tags"
-                    placeholder="Add a tag..."
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    className="flex-1"
-                  />
-                  <Button type="button" onClick={addTag} size="sm">
-                    Add
-                  </Button>
-                </div>
-                {formData.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {formData.tags.map((tag, index) => (
-                      <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                        {tag}
-                        <X
-                          className="h-3 w-3 cursor-pointer"
-                          onClick={() => removeTag(tag)}
-                        />
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleEditEntry} disabled={saving}>
-                <Save className="h-4 w-4 mr-2" />
-                Update Entry
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-    </div>
+          </DataTableShell>
+        </section>
+      )}
+
+      {/* Edit Dialog */}
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => !saving && setIsEditDialogOpen(open)}
+      >
+        <DialogContent className="max-w-2xl bg-surface max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Learning Entry</DialogTitle>
+            <DialogDescription>
+              Update the question-answer pair and tags
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-question">Question *</Label>
+              <Textarea
+                disabled={saving}
+                id="edit-question"
+                placeholder="Enter the question..."
+                value={formData.question}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, question: e.target.value }))
+                }
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-answer">Answer *</Label>
+              <Textarea
+                disabled={saving}
+                id="edit-answer"
+                placeholder="Enter the answer..."
+                value={formData.answer}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, answer: e.target.value }))
+                }
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-tags">Tags</Label>
+              <div className="flex gap-2 mt-1">
+                <Input
+                  disabled={saving}
+                  id="edit-tags"
+                  placeholder="Add a tag..."
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="flex-1"
+                />
+                <Button type="button" onClick={addTag} size="sm">
+                  Add
+                </Button>
+              </div>
+              {formData.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {formData.tags.map((tag, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="flex items-center gap-1"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        aria-label={'Remove tag ' + tag}
+                        onClick={() => removeTag(tag)}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              disabled={saving}
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleEditEntry} disabled={saving}>
+              <Save className="h-4 w-4 mr-2" />
+              Update Entry
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

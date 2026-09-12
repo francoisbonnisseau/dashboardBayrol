@@ -3,6 +3,7 @@ import { AppSidebar } from './Sidebar';
 import type { UserRole } from '@/contexts/AuthContext';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
+import { PageShell } from './dashboard/PageShell';
 import type { DashboardView } from '@/types/views';
 
 interface LayoutProps {
@@ -14,6 +15,7 @@ interface LayoutProps {
 }
 
 const viewLabels = {
+  analysis: 'AI Analysis',
   intro: 'Intro',
   codeText: 'Code Text',
   testPrompts: 'Prompts',
@@ -29,23 +31,24 @@ export default function Layout({
 }: LayoutProps) {
   return (
     <SidebarProvider>
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-background focus:p-3">Skip to content</a>
       <AppSidebar 
         activeView={activeView}
         onViewChange={onViewChange}
         userRole={userRole}
         onLogout={onLogout}
       />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+      <SidebarInset className="min-w-0">
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <h1 className="text-lg font-semibold capitalize">{viewLabels[activeView as keyof typeof viewLabels] || activeView}</h1>
+          <p className="text-sm font-medium capitalize">{viewLabels[activeView as keyof typeof viewLabels] || activeView}</p>
         </header>
-        <main className="flex-1 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/50">
-          <div className="container mx-auto p-6 max-w-7xl animate-in fade-in duration-500">
+        <div id="main-content" tabIndex={-1} className={`min-w-0 flex-1 ${activeView === 'analytics' ? 'bg-surface-subtle' : 'bg-background'}`}>
+          <PageShell width={activeView === 'testModels' || activeView === 'testPrompts' ? 'full' : 'wide'}>
             {children}
-          </div>
-        </main>
+          </PageShell>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

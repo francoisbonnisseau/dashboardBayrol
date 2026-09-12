@@ -3,7 +3,8 @@ import { SettingsProvider, useSettings } from './contexts/SettingsContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import LoginPage from './components/LoginPage';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from './components/dashboard/EmptyState';
+import { LoadingState } from './components/dashboard/LoadingState';
 import { Button } from '@/components/ui/button';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { Toaster } from 'sonner';
@@ -50,7 +51,7 @@ function AppContent() {
         userRole={userRole} 
         onLogout={logout} 
       >
-        <Suspense fallback={<div className="p-6 text-muted-foreground" role="status">Loading…</div>}>
+        <Suspense fallback={<LoadingState variant="page" />}>
         {activeView === 'settings' && <Settings />}
         {activeView === 'analysis' && isConfigured && userRole === 'admin' && <Analysis />}
         {activeView === 'analytics' && isConfigured && <Analytics />}
@@ -71,54 +72,10 @@ function AppContent() {
           activeView === 'testPrompts' ||
           activeView === 'testModels') &&
           !isConfigured && (
-          <div className="flex justify-center w-full px-6 py-12">
-            <div className="w-full max-w-4xl">
-              <Card>
-                <CardHeader className="text-center">
-                  <CardTitle className="text-2xl">Configuration Required</CardTitle>
-                  <CardDescription>
-                    Please configure your Botpress workspace and bot settings before accessing sentiment analysis, feedbacks, learnings, intro entries, code/text entries, prompt management, or analytics
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-center">
-                  <Button 
-                    onClick={goToSettings}
-                    variant="default"
-                    size="lg"
-                    className="px-5 py-3 text-lg shadow-lg"
-                  >
-                    <SettingsIcon className="h-5 w-5 mr-2" />
-                    Configure Settings
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+          <EmptyState title="Configuration Required" description="Configure your Botpress workspace and bot settings to get started." icon={<SettingsIcon />} action={<Button onClick={goToSettings}>Configure Settings</Button>} />
         )}
         {activeView === 'conversations' && !isConfigured && (
-          <div className="flex justify-center w-full px-6 py-12">
-            <div className="w-full max-w-4xl">
-              <Card>
-                <CardHeader className="text-center">
-                  <CardTitle className="text-2xl">Welcome to Bayrol Analytics Dashboard</CardTitle>
-                  <CardDescription>
-                    Get started by configuring your Botpress workspace and bot settings
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-center">
-                  <Button 
-                    onClick={goToSettings}
-                    variant="default"
-                    size="lg"
-                    className="px-5 py-3 text-lg shadow-lg"
-                  >
-                    <SettingsIcon className="h-5 w-5 mr-2" />
-                    Configure Settings
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+          <EmptyState title="Configuration Required" description="Configure your Botpress workspace and bot settings to get started." icon={<SettingsIcon />} action={<Button onClick={goToSettings}>Configure Settings</Button>} />
         )}
         {activeView === 'conversations' && isConfigured && <ConversationsList />}
         </Suspense>

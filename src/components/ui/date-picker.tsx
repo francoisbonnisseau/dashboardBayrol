@@ -32,6 +32,7 @@ export function DatePicker({
       <Popover>
         <PopoverTrigger asChild>
           <Button
+            aria-label={date ? `${placeholder}: ${format(date, "MMM d, yyyy")}` : placeholder}
             variant={"outline"}
             className={cn(
               "justify-start text-left font-normal h-9",
@@ -45,18 +46,19 @@ export function DatePicker({
             {date ? format(date, "MMM d, yyyy") : <span>{placeholder}</span>}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0 bg-white border border-gray-200 shadow-lg" align="start">
+        <PopoverContent className="w-auto p-0" align="start">
           <Calendar
             mode="single"
             selected={date}
             onSelect={setDate}
             initialFocus
-            className="bg-white rounded-md"
+            className="rounded-md"
           />
         </PopoverContent>
       </Popover>
       {showClear && date && (
         <Button
+          aria-label={`Clear ${placeholder.toLowerCase()}`}
           variant="ghost"
           size="sm"
           className="absolute right-0 h-full px-2 hover:bg-transparent"

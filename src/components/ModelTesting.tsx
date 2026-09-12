@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Bot, ChevronLeft, ChevronRight, Loader2, Plus, Save, Send, Settings2, User } from 'lucide-react';
+import { AlertCircle, Bot, Loader2, Plus, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useBotpressClient } from '@/hooks/useBotpressClient';
@@ -17,7 +17,10 @@ import {
   type StaticThinkingOption,
   type ThinkingOption,
 } from '@/lib/modelTestingConfig';
-import { runCompareModelTestingTurn, runSingleModelTestingTurn } from '@/lib/modelTestingAgent';
+import {
+  runCompareModelTestingTurn,
+  runSingleModelTestingTurn,
+} from '@/lib/modelTestingAgent';
 import {
   buildAiModelTableUpdateRow,
   buildPushLivePayload,
@@ -25,8 +28,6 @@ import {
   normalizeAiModelConfigRow,
   type AiModelConfigRow,
 } from '@/lib/modelTestingPushLive';
-import { buildTimingBreakdownTitle, formatLatencyLabel, getDisplayedLatencyMs } from '@/lib/modelTestingTiming';
-import { cn } from '@/lib/utils';
 import {
   getPromptSelectionKey,
   partitionPromptRows,
@@ -37,20 +38,44 @@ import type {
   CognitiveModel,
   LocalChatMessage,
   ModelResponse,
-  ModelResponseStep,
   PerModelHistory,
 } from '@/types/modelTesting';
 import type { SourceItem } from '@/types/structuredMessage';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge as Badge } from '@/components/dashboard';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  PageHeader,
+  PageTabs,
+  PageTab,
+  PageTabList,
+  PageTabPanel,
+  Toolbar,
+  EditorSurface,
+  SplitPane,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/dashboard';
+import { ResponsePanel } from '@/features/model-testing/ResponsePanel';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { StructuredResponseContent } from './StructuredResponseContent';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { TestComposer } from '@/features/model-testing/TestComposer';
 
 const EMPTY_PROMPT_ROWS: PromptRow[] = [];
 const AI_MODEL_TABLE_NAME = 'AIModelTable';
@@ -122,11 +147,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isThinkingOption(value: unknown): value is ThinkingOption {
-  return typeof value === 'string' && THINKING_OPTIONS.includes(value as ThinkingOption);
+  return (
+    typeof value === 'string' &&
+    THINKING_OPTIONS.includes(value as ThinkingOption)
+  );
 }
 
 function isStaticThinkingOption(value: unknown): value is StaticThinkingOption {
-  return typeof value === 'string' && STATIC_THINKING_OPTIONS.includes(value as StaticThinkingOption);
+  return (
+    typeof value === 'string' &&
+    STATIC_THINKING_OPTIONS.includes(value as StaticThinkingOption)
+  );
 }
 
 function readSavedConfigs(): Record<string, unknown> {
@@ -157,26 +188,61 @@ function readSavedBotState(botId: string): SavedBotState | null {
 
   // Backward compatibility with the previous flat shape.
   if ('selectedModelA' in configRecord) {
-    const legacyMode: ModeKey = configRecord.comparisonEnabled ? 'compare' : 'single';
+    const legacyMode: ModeKey = configRecord.comparisonEnabled
+      ? 'compare'
+      : 'single';
     return {
       currentMode: legacyMode,
       modes: {
         [legacyMode]: {
-          thinking: isThinkingOption(configRecord.thinking) ? configRecord.thinking : 'medium',
-          staticThinking: isStaticThinkingOption(configRecord.staticThinking) ? configRecord.staticThinking : 'medium',
+          thinking: isThinkingOption(configRecord.thinking)
+            ? configRecord.thinking
+            : 'medium',
+          staticThinking: isStaticThinkingOption(configRecord.staticThinking)
+            ? configRecord.staticThinking
+            : 'medium',
           temperature:
-            typeof configRecord.temperature === 'number' && Number.isFinite(configRecord.temperature)
+            typeof configRecord.temperature === 'number' &&
+            Number.isFinite(configRecord.temperature)
               ? configRecord.temperature
               : DEFAULT_TEMPERATURE,
-          selectedProviderA: typeof configRecord.selectedProviderA === 'string' ? configRecord.selectedProviderA : '',
-          selectedProviderB: typeof configRecord.selectedProviderB === 'string' ? configRecord.selectedProviderB : '',
-          selectedModelA: typeof configRecord.selectedModelA === 'string' ? configRecord.selectedModelA : '',
-          selectedModelB: typeof configRecord.selectedModelB === 'string' ? configRecord.selectedModelB : '',
-          selectedCheapProvider: typeof configRecord.selectedCheapProvider === 'string' ? configRecord.selectedCheapProvider : '',
-          selectedCheapModel: typeof configRecord.selectedCheapModel === 'string' ? configRecord.selectedCheapModel : '',
-          cheapTemperature: typeof configRecord.cheapTemperature === 'number' ? configRecord.cheapTemperature : DEFAULT_TEMPERATURE,
-          cheapReasoningEffort: isThinkingOption(configRecord.cheapReasoningEffort) ? configRecord.cheapReasoningEffort : 'high',
-          selectedPromptKey: typeof configRecord.selectedPromptKey === 'string' ? configRecord.selectedPromptKey : '',
+          selectedProviderA:
+            typeof configRecord.selectedProviderA === 'string'
+              ? configRecord.selectedProviderA
+              : '',
+          selectedProviderB:
+            typeof configRecord.selectedProviderB === 'string'
+              ? configRecord.selectedProviderB
+              : '',
+          selectedModelA:
+            typeof configRecord.selectedModelA === 'string'
+              ? configRecord.selectedModelA
+              : '',
+          selectedModelB:
+            typeof configRecord.selectedModelB === 'string'
+              ? configRecord.selectedModelB
+              : '',
+          selectedCheapProvider:
+            typeof configRecord.selectedCheapProvider === 'string'
+              ? configRecord.selectedCheapProvider
+              : '',
+          selectedCheapModel:
+            typeof configRecord.selectedCheapModel === 'string'
+              ? configRecord.selectedCheapModel
+              : '',
+          cheapTemperature:
+            typeof configRecord.cheapTemperature === 'number'
+              ? configRecord.cheapTemperature
+              : DEFAULT_TEMPERATURE,
+          cheapReasoningEffort: isThinkingOption(
+            configRecord.cheapReasoningEffort,
+          )
+            ? configRecord.cheapReasoningEffort
+            : 'high',
+          selectedPromptKey:
+            typeof configRecord.selectedPromptKey === 'string'
+              ? configRecord.selectedPromptKey
+              : '',
           turns: [],
           singleHistory: [],
           compareHistory: { modelA: [], modelB: [] },
@@ -186,30 +252,71 @@ function readSavedBotState(botId: string): SavedBotState | null {
   }
 
   const modes = isRecord(configRecord.modes) ? configRecord.modes : {};
-  const normalizeModeSnapshot = (snapshot: Record<string, unknown>): ModeSnapshot => {
-    const compareHistory = isRecord(snapshot.compareHistory) ? snapshot.compareHistory : {};
+  const normalizeModeSnapshot = (
+    snapshot: Record<string, unknown>,
+  ): ModeSnapshot => {
+    const compareHistory = isRecord(snapshot.compareHistory)
+      ? snapshot.compareHistory
+      : {};
 
     return {
-      thinking: isThinkingOption(snapshot.thinking) ? snapshot.thinking : 'medium',
-      staticThinking: isStaticThinkingOption(snapshot.staticThinking) ? snapshot.staticThinking : 'medium',
+      thinking: isThinkingOption(snapshot.thinking)
+        ? snapshot.thinking
+        : 'medium',
+      staticThinking: isStaticThinkingOption(snapshot.staticThinking)
+        ? snapshot.staticThinking
+        : 'medium',
       temperature:
-        typeof snapshot.temperature === 'number' && Number.isFinite(snapshot.temperature)
+        typeof snapshot.temperature === 'number' &&
+        Number.isFinite(snapshot.temperature)
           ? snapshot.temperature
           : DEFAULT_TEMPERATURE,
-      selectedProviderA: typeof snapshot.selectedProviderA === 'string' ? snapshot.selectedProviderA : '',
-      selectedProviderB: typeof snapshot.selectedProviderB === 'string' ? snapshot.selectedProviderB : '',
-      selectedModelA: typeof snapshot.selectedModelA === 'string' ? snapshot.selectedModelA : '',
-      selectedModelB: typeof snapshot.selectedModelB === 'string' ? snapshot.selectedModelB : '',
-      selectedCheapProvider: typeof snapshot.selectedCheapProvider === 'string' ? snapshot.selectedCheapProvider : '',
-      selectedCheapModel: typeof snapshot.selectedCheapModel === 'string' ? snapshot.selectedCheapModel : '',
-      cheapTemperature: typeof snapshot.cheapTemperature === 'number' ? snapshot.cheapTemperature : DEFAULT_TEMPERATURE,
-      cheapReasoningEffort: isThinkingOption(snapshot.cheapReasoningEffort) ? snapshot.cheapReasoningEffort : 'high',
-      selectedPromptKey: typeof snapshot.selectedPromptKey === 'string' ? snapshot.selectedPromptKey : '',
+      selectedProviderA:
+        typeof snapshot.selectedProviderA === 'string'
+          ? snapshot.selectedProviderA
+          : '',
+      selectedProviderB:
+        typeof snapshot.selectedProviderB === 'string'
+          ? snapshot.selectedProviderB
+          : '',
+      selectedModelA:
+        typeof snapshot.selectedModelA === 'string'
+          ? snapshot.selectedModelA
+          : '',
+      selectedModelB:
+        typeof snapshot.selectedModelB === 'string'
+          ? snapshot.selectedModelB
+          : '',
+      selectedCheapProvider:
+        typeof snapshot.selectedCheapProvider === 'string'
+          ? snapshot.selectedCheapProvider
+          : '',
+      selectedCheapModel:
+        typeof snapshot.selectedCheapModel === 'string'
+          ? snapshot.selectedCheapModel
+          : '',
+      cheapTemperature:
+        typeof snapshot.cheapTemperature === 'number'
+          ? snapshot.cheapTemperature
+          : DEFAULT_TEMPERATURE,
+      cheapReasoningEffort: isThinkingOption(snapshot.cheapReasoningEffort)
+        ? snapshot.cheapReasoningEffort
+        : 'high',
+      selectedPromptKey:
+        typeof snapshot.selectedPromptKey === 'string'
+          ? snapshot.selectedPromptKey
+          : '',
       turns: Array.isArray(snapshot.turns) ? snapshot.turns : [],
-      singleHistory: Array.isArray(snapshot.singleHistory) ? snapshot.singleHistory : [],
+      singleHistory: Array.isArray(snapshot.singleHistory)
+        ? snapshot.singleHistory
+        : [],
       compareHistory: {
-        modelA: Array.isArray(compareHistory.modelA) ? compareHistory.modelA : [],
-        modelB: Array.isArray(compareHistory.modelB) ? compareHistory.modelB : [],
+        modelA: Array.isArray(compareHistory.modelA)
+          ? compareHistory.modelA
+          : [],
+        modelB: Array.isArray(compareHistory.modelB)
+          ? compareHistory.modelB
+          : [],
       },
     };
   };
@@ -217,8 +324,12 @@ function readSavedBotState(botId: string): SavedBotState | null {
   return {
     currentMode: configRecord.currentMode === 'single' ? 'single' : 'compare',
     modes: {
-      single: isRecord(modes.single) ? normalizeModeSnapshot(modes.single) : undefined,
-      compare: isRecord(modes.compare) ? normalizeModeSnapshot(modes.compare) : undefined,
+      single: isRecord(modes.single)
+        ? normalizeModeSnapshot(modes.single)
+        : undefined,
+      compare: isRecord(modes.compare)
+        ? normalizeModeSnapshot(modes.compare)
+        : undefined,
     },
   };
 }
@@ -234,13 +345,13 @@ function writeSavedBotState(botId: string, state: SavedBotState) {
     JSON.stringify({
       ...currentConfigs,
       [botId]: state,
-    })
+    }),
   );
 }
 
 function getPromptBySelectionKey(
   prompts: ReturnType<typeof partitionPromptRows>,
-  selectionKey: string | null
+  selectionKey: string | null,
 ) {
   if (!selectionKey) {
     return null;
@@ -262,7 +373,9 @@ function getPromptBySelectionKey(
   return null;
 }
 
-function getDefaultPromptSelectionKey(prompts: ReturnType<typeof partitionPromptRows>) {
+function getDefaultPromptSelectionKey(
+  prompts: ReturnType<typeof partitionPromptRows>,
+) {
   if (prompts.testing) {
     return 'testing';
   }
@@ -286,52 +399,12 @@ function formatTime(isoDate: string) {
   }).format(date);
 }
 
-function costLabel(usage?: ModelResponse['usage']) {
-  if (!usage) {
-    return null;
-  }
-
-  const total = (usage.inputCost || 0) + (usage.outputCost || 0);
-  if (!total) {
-    return null;
-  }
-
-  return `${total.toFixed(5).replace('.', ',')} $`;
-}
-
-function extractAgentDisplayMessage(rawMessage: string) {
-  try {
-    const parsed = JSON.parse(rawMessage);
-    if (parsed?.action === 'reply_to_user' && typeof parsed.response_text === 'string') {
-      return parsed.response_text;
-    }
-
-    if (parsed?.action === 'send_message_and_call_tool' && typeof parsed.message_to_user === 'string') {
-      return parsed.message_to_user;
-    }
-
-    return null;
-  } catch {
-    return rawMessage;
-  }
-}
-
-function getRenderableResponseMessages(response: ModelResponse) {
-  if (response.responseParts?.length) {
-    return response.responseParts.flatMap((part) => {
-      if (part.type === 'text') return [part.text];
-      if (part.type === 'step_list') {
-        return [part.steps.map((step) => `${step.title || ''}\n${step.text || ''}`.trim()).filter(Boolean).join('\n')];
-      }
-      return [];
-    });
-  }
-
-  const rawMessages = response.messages?.length ? response.messages : [response.text];
-
-  return rawMessages
-    .map((message) => extractAgentDisplayMessage(message))
-    .filter((message): message is string => Boolean(message?.trim()));
+function UserMessage({ text, createdAt }: { text: string; createdAt: string }) {
+  return (
+    <EditorSurface title="User message" footer={formatTime(createdAt)}>
+      <p className="whitespace-pre-wrap p-3">{text}</p>
+    </EditorSurface>
+  );
 }
 
 function responseHasProgress(response: ModelResponse | undefined) {
@@ -340,284 +413,24 @@ function responseHasProgress(response: ModelResponse | undefined) {
   }
 
   return Boolean(
-      response.steps?.length ||
+    response.steps?.length ||
       response.messages?.length ||
       response.responseParts?.length ||
       response.text ||
       response.error ||
       response.latencyMs ||
-      response.usage
-  );
-}
-
-function formatToolJson(value: unknown) {
-  try {
-    return JSON.stringify(value, null, 2) ?? 'undefined';
-  } catch {
-    return String(value);
-  }
-}
-
-function getToolReadableOutput(step: ModelResponseStep) {
-  if (step.toolOutput === undefined) {
-    return null;
-  }
-
-  if (step.toolName === 'searchKnowledge' && isRecord(step.toolOutput)) {
-    if (typeof step.toolOutput.debugSummary === 'string' && step.toolOutput.debugSummary.trim()) {
-      return step.toolOutput.debugSummary;
-    }
-
-    if (typeof step.toolOutput.answer === 'string') {
-      return step.toolOutput.answer;
-    }
-  }
-
-  if (typeof step.toolOutput === 'string') {
-    return step.toolOutput;
-  }
-
-  return formatToolJson(step.toolOutput);
-}
-
-function ToolCallStep({ step }: { step: ModelResponseStep }) {
-  const readableOutput = getToolReadableOutput(step);
-  const hasOutput = step.toolOutput !== undefined;
-  const executedInput = step.toolInput ?? step.toolArgs ?? {};
-  const inputLabel = step.toolInput ? 'Executed input' : 'Requested input';
-
-  return (
-    <details className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-        <div className="min-w-0">
-          <span className="text-sm font-medium text-slate-800">Tool call</span>
-          <span className="ml-2 font-mono text-xs text-slate-500">{step.toolName}</span>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {typeof step.toolDurationMs === 'number' ? (
-            <span className="text-xs text-slate-500">{formatLatencyLabel(step.toolDurationMs)}</span>
-          ) : null}
-          {step.toolSource === 'prefetched' ? (
-            <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-              Prefetched
-            </Badge>
-          ) : null}
-          {step.toolSource === 'simulated' ? (
-            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-              Simulated
-            </Badge>
-          ) : null}
-          <Badge
-            variant="outline"
-            className={cn(
-              'border-slate-200 bg-white text-slate-600',
-              step.status === 'pending' && 'border-blue-200 bg-blue-50 text-blue-700',
-              step.status === 'completed' && 'border-emerald-200 bg-emerald-50 text-emerald-700',
-              step.status === 'failed' && 'border-rose-200 bg-rose-50 text-rose-700'
-            )}
-          >
-            {step.status === 'pending' ? 'Running' : step.status === 'failed' ? 'Failed' : 'Done'}
-          </Badge>
-        </div>
-      </summary>
-      <div className="mt-3 space-y-3">
-        {step.thinkingMessage ? (
-          <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
-            {step.thinkingMessage}
-          </div>
-        ) : null}
-        <div>
-          <div className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-slate-500">{inputLabel}</div>
-          <pre className="max-h-44 overflow-auto rounded-md border border-slate-200 bg-white p-3 text-xs leading-6 text-slate-700">
-            {formatToolJson(executedInput)}
-          </pre>
-        </div>
-
-        {step.error ? (
-          <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-3 text-sm leading-6 text-rose-700">
-            {step.error}
-          </div>
-        ) : null}
-
-        {hasOutput ? (
-          <div>
-            <div className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-slate-500">Response</div>
-            <div className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-700">
-              {readableOutput || '[Empty response]'}
-            </div>
-
-            <details className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2">
-              <summary className="cursor-pointer text-xs font-medium uppercase tracking-[0.08em] text-slate-500">
-                Raw JSON
-              </summary>
-              <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words border-t border-slate-100 pt-2 text-xs leading-6 text-slate-700">
-                {formatToolJson(step.toolOutput)}
-              </pre>
-            </details>
-          </div>
-        ) : step.status === 'pending' ? (
-          <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-3 text-sm text-blue-700">
-            Waiting for the tool response…
-          </div>
-        ) : null}
-      </div>
-    </details>
-  );
-}
-
-function Toggle({
-  checked,
-  onToggle,
-}: {
-  checked: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={onToggle}
-      className={cn(
-        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-        checked ? 'bg-blue-600' : 'bg-slate-300'
-      )}
-    >
-      <span
-        className={cn(
-          'inline-block size-5 rounded-full bg-white transition-transform',
-          checked ? 'translate-x-5' : 'translate-x-0.5'
-        )}
-      />
-    </button>
-  );
-}
-
-function UserMessageCard({ text, createdAt }: { text: string; createdAt: string }) {
-  return (
-    <div className="border border-slate-200 bg-white p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600">
-            <User className="size-4" />
-          </div>
-          <span className="text-sm font-medium text-slate-800">User</span>
-        </div>
-        <span className="text-xs text-slate-400">{formatTime(createdAt)}</span>
-      </div>
-
-      <div className="border border-blue-100 bg-blue-50/70 px-4 py-4 text-[15px] leading-7 text-slate-800">
-        <p className="whitespace-pre-wrap">{text}</p>
-      </div>
-    </div>
-  );
-}
-
-function ResponseCard({
-  response,
-  title,
-  accentClassName,
-}: {
-  response: ModelResponse;
-  title: string;
-  accentClassName: string;
-}) {
-  const cost = costLabel(response.usage);
-  const timingTitle = buildTimingBreakdownTitle(response);
-  const messages = getRenderableResponseMessages(response);
-  const steps = response.steps ?? [];
-
-  return (
-    <div className="border border-slate-200 bg-white">
-      <div className="flex items-center justify-between gap-3 px-4 py-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className={cn('size-3 shrink-0 rounded-full', accentClassName)} />
-          <span className="truncate text-sm font-medium text-slate-900">{title}</span>
-        </div>
-        <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
-          {getProviderLabel(getProviderFromModelId(response.modelId))}
-        </Badge>
-      </div>
-
-      <div className="px-4 pb-4">
-        <div className="min-h-[280px] space-y-4 text-[15px] leading-7 text-slate-800">
-          {steps.length > 0 ? (
-            steps.map((step) =>
-              step.kind === 'tool_call' ? (
-                <ToolCallStep key={step.id} step={step} />
-              ) : step.responsePart ? (
-                <StructuredResponseContent key={step.id} part={step.responsePart} />
-              ) : (
-                <div
-                  key={step.id}
-                  className={cn(
-                    'whitespace-pre-wrap',
-                    step.status === 'failed'
-                      ? 'rounded-md border border-rose-200 bg-rose-50 px-3 py-3 text-rose-700'
-                      : 'text-slate-800'
-                  )}
-                >
-                  {step.text}
-                </div>
-              )
-            )
-          ) : response.responseParts?.length ? (
-            response.responseParts.map((part, index) => (
-              <StructuredResponseContent key={`${response.modelId}-part-${index}`} part={part} />
-            ))
-          ) : messages.length > 0 ? (
-            messages.map((message, index) => (
-              <div
-                key={`${response.modelId}-${index}`}
-                className={cn(
-                  'whitespace-pre-wrap',
-                  index < messages.length - 1 ? 'border-l-2 border-slate-200 pl-3 text-slate-500' : 'text-slate-800'
-                )}
-              >
-                {message}
-              </div>
-            ))
-          ) : response.error ? (
-            <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-3 text-sm leading-7 text-rose-700">
-              {response.error}
-            </div>
-          ) : (
-            <p className="whitespace-pre-wrap">{response.text || '[Empty response]'}</p>
-          )}
-
-          {response.error ? (
-            <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-3 text-sm leading-7 text-rose-700">
-              Technical error: {response.error}
-            </div>
-          ) : null}
-
-          {response.pending ? (
-            <div className="inline-flex items-center gap-2 text-[15px] leading-7 text-slate-500">
-              <span>Thinking</span>
-              <span className="inline-flex gap-1">
-                <span className="size-1.5 animate-pulse rounded-full bg-slate-400 [animation-delay:0ms]" />
-                <span className="size-1.5 animate-pulse rounded-full bg-slate-400 [animation-delay:150ms]" />
-                <span className="size-1.5 animate-pulse rounded-full bg-slate-400 [animation-delay:300ms]" />
-              </span>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="px-4 pb-4 text-sm text-slate-500">
-        <span>{cost ? `Cost ${cost}` : 'Cost -'}</span>
-        <span className="mx-2">·</span>
-        <span title={timingTitle ?? undefined}>Time {formatLatencyLabel(getDisplayedLatencyMs(response))}</span>
-      </div>
-    </div>
+      response.usage,
   );
 }
 
 export default function ModelTesting() {
   const { settings } = useSettings();
   const promptBots = useMemo(
-    () => settings.bots.filter((bot) => ALLOWED_PROMPT_BOTS.has(bot.id) && bot.botId),
-    [settings.bots]
+    () =>
+      settings.bots.filter(
+        (bot) => ALLOWED_PROMPT_BOTS.has(bot.id) && bot.botId,
+      ),
+    [settings.bots],
   );
 
   const [selectedBotId, setSelectedBotId] = useState('');
@@ -633,16 +446,20 @@ export default function ModelTesting() {
   const [selectedCheapModel, setSelectedCheapModel] = useState('');
   const [comparisonEnabled, setComparisonEnabled] = useState(true);
   const [thinking, setThinking] = useState<ThinkingOption>('medium');
-  const [staticThinking, setStaticThinking] = useState<StaticThinkingOption>('medium');
+  const [staticThinking, setStaticThinking] =
+    useState<StaticThinkingOption>('medium');
   const [temperature, setTemperature] = useState<number>(DEFAULT_TEMPERATURE);
-  const [cheapTemperature, setCheapTemperature] = useState<number>(DEFAULT_TEMPERATURE);
-  const [cheapReasoningEffort, setCheapReasoningEffort] = useState<ThinkingOption>('high');
+  const [cheapTemperature, setCheapTemperature] =
+    useState<number>(DEFAULT_TEMPERATURE);
+  const [cheapReasoningEffort, setCheapReasoningEffort] =
+    useState<ThinkingOption>('high');
 
   const [selectedPromptKey, setSelectedPromptKey] = useState('');
 
   const [configSaved, setConfigSaved] = useState(true);
   const [testSettingsOpen, setTestSettingsOpen] = useState(false);
-  const [testSettingsDraft, setTestSettingsDraft] = useState<TestSettingsDraft | null>(null);
+  const [testSettingsDraft, setTestSettingsDraft] =
+    useState<TestSettingsDraft | null>(null);
   const configBootedRef = useRef(false);
   const restoringConfigRef = useRef(false);
   const modelSelectionResetRef = useRef(false);
@@ -650,36 +467,57 @@ export default function ModelTesting() {
   const [pushDialogOpen, setPushDialogOpen] = useState(false);
   const [pushModelId, setPushModelId] = useState('');
   const [pushCheapModelId, setPushCheapModelId] = useState('');
-  const [pushTemperature, setPushTemperature] = useState(String(DEFAULT_TEMPERATURE));
-  const [pushReasoningEffort, setPushReasoningEffort] = useState<ThinkingOption>('medium');
-  const [pushCheapTemperature, setPushCheapTemperature] = useState(String(DEFAULT_TEMPERATURE));
-  const [pushCheapReasoningEffort, setPushCheapReasoningEffort] = useState<ThinkingOption>('high');
-  const [liveStrongModelConfig, setLiveStrongModelConfig] = useState<AiModelConfigRow | null>(null);
-  const [liveCheapModelConfig, setLiveCheapModelConfig] = useState<AiModelConfigRow | null>(null);
+  const [pushTemperature, setPushTemperature] = useState(
+    String(DEFAULT_TEMPERATURE),
+  );
+  const [pushReasoningEffort, setPushReasoningEffort] =
+    useState<ThinkingOption>('medium');
+  const [pushCheapTemperature, setPushCheapTemperature] = useState(
+    String(DEFAULT_TEMPERATURE),
+  );
+  const [pushCheapReasoningEffort, setPushCheapReasoningEffort] =
+    useState<ThinkingOption>('high');
+  const [liveStrongModelConfig, setLiveStrongModelConfig] =
+    useState<AiModelConfigRow | null>(null);
+  const [liveCheapModelConfig, setLiveCheapModelConfig] =
+    useState<AiModelConfigRow | null>(null);
   const [pushConfigLoading, setPushConfigLoading] = useState(false);
   const [pushConfigSaving, setPushConfigSaving] = useState(false);
-  const [settingsCollapsed, setSettingsCollapsed] = useState(false);
   const hydratedBotIdRef = useRef<string | null>(null);
 
   const [userMessage, setUserMessage] = useState('');
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [singleHistory, setSingleHistory] = useState<LocalChatMessage[]>([]);
-  const [compareHistory, setCompareHistory] = useState<PerModelHistory>({ modelA: [], modelB: [] });
+  const [compareHistory, setCompareHistory] = useState<PerModelHistory>({
+    modelA: [],
+    modelB: [],
+  });
   const [running, setRunning] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
-  const previousModelSelectionRef = useRef<{ modelA: string; modelB: string } | null>(null);
+  const previousModelSelectionRef = useRef<{
+    modelA: string;
+    modelB: string;
+  } | null>(null);
 
   const client = useBotpressClient(selectedBotId);
-  const promptQuery = usePromptRows(client, settings.workspaceId, selectedBotId);
+  const promptQuery = usePromptRows(
+    client,
+    settings.workspaceId,
+    selectedBotId,
+  );
   const promptRows = promptQuery.data ?? EMPTY_PROMPT_ROWS;
   const prompts = useMemo(() => partitionPromptRows(promptRows), [promptRows]);
   const selectedPrompt = useMemo(
     () => getPromptBySelectionKey(prompts, selectedPromptKey),
-    [prompts, selectedPromptKey]
+    [prompts, selectedPromptKey],
   );
   const promptOptions = useMemo(() => {
-    const options: Array<{ key: string; label: string; version: PromptRow['version'] }> = [];
+    const options: Array<{
+      key: string;
+      label: string;
+      version: PromptRow['version'];
+    }> = [];
 
     if (prompts.testing) {
       options.push({
@@ -713,44 +551,72 @@ export default function ModelTesting() {
     return Array.from(values);
   }, [models]);
   const modelsForProviderA = useMemo(
-    () => models.filter((model) => getProviderFromModelId(model.id) === selectedProviderA),
-    [models, selectedProviderA]
+    () =>
+      models.filter(
+        (model) => getProviderFromModelId(model.id) === selectedProviderA,
+      ),
+    [models, selectedProviderA],
   );
   const modelsForProviderB = useMemo(
-    () => models.filter((model) => getProviderFromModelId(model.id) === selectedProviderB),
-    [models, selectedProviderB]
+    () =>
+      models.filter(
+        (model) => getProviderFromModelId(model.id) === selectedProviderB,
+      ),
+    [models, selectedProviderB],
   );
   const modelsForCheapProvider = useMemo(
-    () => models.filter((model) => getProviderFromModelId(model.id) === selectedCheapProvider),
-    [models, selectedCheapProvider]
+    () =>
+      models.filter(
+        (model) => getProviderFromModelId(model.id) === selectedCheapProvider,
+      ),
+    [models, selectedCheapProvider],
   );
   const selectedModelAData = useMemo(
     () => models.find((model) => model.id === selectedModelA) ?? null,
-    [models, selectedModelA]
+    [models, selectedModelA],
   );
   const selectedModelBData = useMemo(
     () => models.find((model) => model.id === selectedModelB) ?? null,
-    [models, selectedModelB]
+    [models, selectedModelB],
   );
   const selectedBot = useMemo(
     () => promptBots.find((bot) => bot.botId === selectedBotId) ?? null,
-    [promptBots, selectedBotId]
+    [promptBots, selectedBotId],
   );
   const draftModelsForProviderA = useMemo(
-    () => models.filter((model) => getProviderFromModelId(model.id) === testSettingsDraft?.selectedProviderA),
-    [models, testSettingsDraft?.selectedProviderA]
+    () =>
+      models.filter(
+        (model) =>
+          getProviderFromModelId(model.id) ===
+          testSettingsDraft?.selectedProviderA,
+      ),
+    [models, testSettingsDraft?.selectedProviderA],
   );
   const draftModelsForProviderB = useMemo(
-    () => models.filter((model) => getProviderFromModelId(model.id) === testSettingsDraft?.selectedProviderB),
-    [models, testSettingsDraft?.selectedProviderB]
+    () =>
+      models.filter(
+        (model) =>
+          getProviderFromModelId(model.id) ===
+          testSettingsDraft?.selectedProviderB,
+      ),
+    [models, testSettingsDraft?.selectedProviderB],
   );
   const draftDecisionModels = useMemo(
-    () => models.filter((model) => getProviderFromModelId(model.id) === testSettingsDraft?.selectedCheapProvider),
-    [models, testSettingsDraft?.selectedCheapProvider]
+    () =>
+      models.filter(
+        (model) =>
+          getProviderFromModelId(model.id) ===
+          testSettingsDraft?.selectedCheapProvider,
+      ),
+    [models, testSettingsDraft?.selectedCheapProvider],
   );
   const draftPrompt = useMemo(
-    () => getPromptBySelectionKey(prompts, testSettingsDraft?.selectedPromptKey ?? null),
-    [prompts, testSettingsDraft?.selectedPromptKey]
+    () =>
+      getPromptBySelectionKey(
+        prompts,
+        testSettingsDraft?.selectedPromptKey ?? null,
+      ),
+    [prompts, testSettingsDraft?.selectedPromptKey],
   );
   const canApplyTestSettings = Boolean(
     testSettingsDraft?.selectedProviderA &&
@@ -761,7 +627,8 @@ export default function ModelTesting() {
       (!comparisonEnabled ||
         (testSettingsDraft.selectedProviderB &&
           testSettingsDraft.selectedModelB &&
-          testSettingsDraft.selectedModelA !== testSettingsDraft.selectedModelB))
+          testSettingsDraft.selectedModelA !==
+            testSettingsDraft.selectedModelB)),
   );
   const currentMode = comparisonEnabled ? 'compare' : 'single';
 
@@ -805,10 +672,14 @@ export default function ModelTesting() {
     setSelectedProviderB(snapshot?.selectedProviderB ?? fallbackProviderB);
     setSelectedModelA(snapshot?.selectedModelA ?? fallbackModelA);
     setSelectedModelB(snapshot?.selectedModelB ?? fallbackModelB);
-    setSelectedCheapProvider(snapshot?.selectedCheapProvider ?? selectedCheapProvider);
+    setSelectedCheapProvider(
+      snapshot?.selectedCheapProvider ?? selectedCheapProvider,
+    );
     setSelectedCheapModel(snapshot?.selectedCheapModel ?? selectedCheapModel);
     setCheapTemperature(snapshot?.cheapTemperature ?? cheapTemperature);
-    setCheapReasoningEffort(snapshot?.cheapReasoningEffort ?? cheapReasoningEffort);
+    setCheapReasoningEffort(
+      snapshot?.cheapReasoningEffort ?? cheapReasoningEffort,
+    );
     setSelectedPromptKey(snapshot?.selectedPromptKey ?? fallbackPromptKey);
     setTurns(snapshot?.turns ?? []);
     setSingleHistory(snapshot?.singleHistory ?? []);
@@ -836,7 +707,7 @@ export default function ModelTesting() {
 
   function persistModeConversation(
     mode: ModeKey,
-    chatState: Pick<ModeSnapshot, 'turns' | 'singleHistory' | 'compareHistory'>
+    chatState: Pick<ModeSnapshot, 'turns' | 'singleHistory' | 'compareHistory'>,
   ) {
     if (!selectedBotId) {
       return;
@@ -851,11 +722,14 @@ export default function ModelTesting() {
         mode,
         currentSnapshot: buildModeSnapshot(),
         chatState,
-      })
+      }),
     );
   }
 
-  function resetConversationForModelSelection(nextModelA: string, nextModelB = selectedModelB) {
+  function resetConversationForModelSelection(
+    nextModelA: string,
+    nextModelB = selectedModelB,
+  ) {
     const normalizedSelection = {
       modelA: nextModelA,
       modelB: comparisonEnabled ? nextModelB : '',
@@ -894,7 +768,7 @@ export default function ModelTesting() {
           existingState,
           currentMode,
           currentSnapshot: clearedSnapshot,
-        })
+        }),
       );
     }
 
@@ -907,6 +781,7 @@ export default function ModelTesting() {
     }
 
     setSelectedModelA(nextModel);
+    setSelectedProviderA(getProviderFromModelId(nextModel));
     resetConversationForModelSelection(nextModel);
   }
 
@@ -916,6 +791,7 @@ export default function ModelTesting() {
     }
 
     setSelectedModelB(nextModel);
+    setSelectedProviderB(getProviderFromModelId(nextModel));
     resetConversationForModelSelection(selectedModelA, nextModel);
   }
 
@@ -936,7 +812,10 @@ export default function ModelTesting() {
       setModelsLoading(true);
       setModelsError(null);
       try {
-        const nextModels = await fetchCognitiveModels(settings.token, selectedBotId);
+        const nextModels = await fetchCognitiveModels(
+          settings.token,
+          selectedBotId,
+        );
         if (!cancelled) {
           setModels(filterDisplayableCognitiveModels(nextModels));
         }
@@ -979,7 +858,10 @@ export default function ModelTesting() {
     configBootedRef.current = false;
 
     if (savedState) {
-      applyModeSnapshot(savedState.currentMode, savedState.modes[savedState.currentMode]);
+      applyModeSnapshot(
+        savedState.currentMode,
+        savedState.modes[savedState.currentMode],
+      );
     } else {
       setComparisonEnabled(true);
       setThinking('medium');
@@ -1004,7 +886,10 @@ export default function ModelTesting() {
   }, [selectedBotId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    messagesEndRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end',
+    });
   }, [turns]);
 
   useEffect(() => {
@@ -1014,27 +899,44 @@ export default function ModelTesting() {
       return;
     }
 
-    if (!selectedModelA || !models.some((model) => model.id === selectedModelA)) {
-      const recommended = models.find((model) => model.tags?.includes('recommended')) ?? models[0];
+    if (
+      !selectedModelA ||
+      !models.some((model) => model.id === selectedModelA)
+    ) {
+      const recommended =
+        models.find((model) => model.tags?.includes('recommended')) ??
+        models[0];
       setSelectedModelA(recommended.id);
       setSelectedProviderA(getProviderFromModelId(recommended.id));
     }
 
-    if (!selectedModelB || !models.some((model) => model.id === selectedModelB)) {
+    if (
+      !selectedModelB ||
+      !models.some((model) => model.id === selectedModelB)
+    ) {
       const firstModelId = selectedModelA || models[0].id;
-      const fallback = models.find((model) => model.id !== firstModelId) ?? models[0];
+      const fallback =
+        models.find((model) => model.id !== firstModelId) ?? models[0];
       setSelectedModelB(fallback.id);
       setSelectedProviderB(getProviderFromModelId(fallback.id));
     }
-    if (!selectedCheapModel || !models.some((model) => model.id === selectedCheapModel)) {
-      const cheap = models.find((model) => /mini|flash|lite/i.test(model.id)) ?? models[0];
+    if (
+      !selectedCheapModel ||
+      !models.some((model) => model.id === selectedCheapModel)
+    ) {
+      const cheap =
+        models.find((model) => /mini|flash|lite/i.test(model.id)) ?? models[0];
       setSelectedCheapModel(cheap.id);
       setSelectedCheapProvider(getProviderFromModelId(cheap.id));
     }
   }, [models, selectedModelA, selectedModelB, selectedCheapModel]);
 
   useEffect(() => {
-    if (!selectedBotId || !models.length || hydratedBotIdRef.current === selectedBotId) {
+    if (
+      !selectedBotId ||
+      !models.length ||
+      hydratedBotIdRef.current === selectedBotId
+    ) {
       return;
     }
 
@@ -1045,7 +947,10 @@ export default function ModelTesting() {
       return;
     }
 
-    applyModeSnapshot(savedState.currentMode, savedState.modes[savedState.currentMode]);
+    applyModeSnapshot(
+      savedState.currentMode,
+      savedState.modes[savedState.currentMode],
+    );
     setConfigSaved(true);
   }, [models.length, selectedBotId]);
 
@@ -1061,10 +966,15 @@ export default function ModelTesting() {
     }
   }, [selectedProviderB, selectedModelB]);
   useEffect(() => {
-    if (!selectedCheapProvider && selectedCheapModel) setSelectedCheapProvider(getProviderFromModelId(selectedCheapModel));
+    if (!selectedCheapProvider && selectedCheapModel)
+      setSelectedCheapProvider(getProviderFromModelId(selectedCheapModel));
   }, [selectedCheapProvider, selectedCheapModel]);
   useEffect(() => {
-    if (selectedCheapProvider && modelsForCheapProvider.length && !modelsForCheapProvider.some((model) => model.id === selectedCheapModel)) {
+    if (
+      selectedCheapProvider &&
+      modelsForCheapProvider.length &&
+      !modelsForCheapProvider.some((model) => model.id === selectedCheapModel)
+    ) {
       setSelectedCheapModel(modelsForCheapProvider[0].id);
     }
   }, [modelsForCheapProvider, selectedCheapModel, selectedCheapProvider]);
@@ -1105,7 +1015,7 @@ export default function ModelTesting() {
         selectedCheapModel &&
         selectedPromptKey &&
         thinking &&
-        (!comparisonEnabled || (selectedProviderB && selectedModelB))
+        (!comparisonEnabled || (selectedProviderB && selectedModelB)),
     );
     if (!ready) {
       return;
@@ -1171,7 +1081,7 @@ export default function ModelTesting() {
             existingState,
             currentMode,
             currentSnapshot: clearedSnapshot,
-          })
+          }),
         );
       }
       setConfigSaved(true);
@@ -1205,7 +1115,9 @@ export default function ModelTesting() {
     persistCurrentMode();
 
     setConfigSaved(true);
-    toast.success(`Configuration locale enregistree pour ${selectedBot?.name || 'ce bot'}`);
+    toast.success(
+      `Configuration locale enregistree pour ${selectedBot?.name || 'ce bot'}`,
+    );
   }
 
   function openTestSettings() {
@@ -1247,7 +1159,10 @@ export default function ModelTesting() {
     setSelectedCheapProvider(testSettingsDraft.selectedCheapProvider);
     setSelectedCheapModel(testSettingsDraft.selectedCheapModel);
     setThinking(testSettingsDraft.thinking);
-    if (testSettingsDraft.thinking !== 'none' && testSettingsDraft.thinking !== 'dynamic') {
+    if (
+      testSettingsDraft.thinking !== 'none' &&
+      testSettingsDraft.thinking !== 'dynamic'
+    ) {
       setStaticThinking(testSettingsDraft.thinking);
     }
     setTemperature(testSettingsDraft.temperature);
@@ -1299,16 +1214,22 @@ export default function ModelTesting() {
       setLiveCheapModelConfig(cheapRow);
       if (strongRow) {
         setPushModelId(strongRow.model);
-        setPushTemperature(clampPushTemperature(strongRow.temperature).toString());
+        setPushTemperature(
+          clampPushTemperature(strongRow.temperature).toString(),
+        );
         setPushReasoningEffort(strongRow.reasoningEffort);
       }
       if (cheapRow) {
         setPushCheapModelId(cheapRow.model);
-        setPushCheapTemperature(clampPushTemperature(cheapRow.temperature).toString());
+        setPushCheapTemperature(
+          clampPushTemperature(cheapRow.temperature).toString(),
+        );
         setPushCheapReasoningEffort(cheapRow.reasoningEffort);
       }
       if (!strongRow || !cheapRow) {
-        toast.error('AIModelTable doit contenir une ligne strong et une ligne cheap');
+        toast.error(
+          'AIModelTable doit contenir une ligne strong et une ligne cheap',
+        );
       }
     } catch (error) {
       console.error('Error loading AI model config:', error);
@@ -1337,12 +1258,22 @@ export default function ModelTesting() {
 
     const nextTemperature = Number(pushTemperature);
     const nextCheapTemperature = Number(pushCheapTemperature);
-    if (!Number.isFinite(nextTemperature) || nextTemperature < 0 || nextTemperature > 1) {
+    if (
+      !Number.isFinite(nextTemperature) ||
+      nextTemperature < 0 ||
+      nextTemperature > 1
+    ) {
       toast.error('La temperature doit etre comprise entre 0 et 1');
       return;
     }
-    if (!Number.isFinite(nextCheapTemperature) || nextCheapTemperature < 0 || nextCheapTemperature > 1) {
-      toast.error('La temperature du modele de decision doit etre comprise entre 0 et 1');
+    if (
+      !Number.isFinite(nextCheapTemperature) ||
+      nextCheapTemperature < 0 ||
+      nextCheapTemperature > 1
+    ) {
+      toast.error(
+        'La temperature du modele de decision doit etre comprise entre 0 et 1',
+      );
       return;
     }
 
@@ -1375,8 +1306,12 @@ export default function ModelTesting() {
       });
       toast.success('Configuration IA live mise a jour');
       setPushDialogOpen(false);
-      setLiveStrongModelConfig(buildAiModelTableUpdateRow(liveStrongModelConfig, strongPayload));
-      setLiveCheapModelConfig(buildAiModelTableUpdateRow(liveCheapModelConfig, cheapPayload));
+      setLiveStrongModelConfig(
+        buildAiModelTableUpdateRow(liveStrongModelConfig, strongPayload),
+      );
+      setLiveCheapModelConfig(
+        buildAiModelTableUpdateRow(liveCheapModelConfig, cheapPayload),
+      );
     } catch (error) {
       console.error('Error updating AI model config:', error);
       toast.error('Impossible de mettre a jour AIModelTable');
@@ -1398,7 +1333,7 @@ export default function ModelTesting() {
           existingState,
           currentMode,
           currentSnapshot: buildModeSnapshot(),
-        })
+        }),
       );
     }
   }
@@ -1439,22 +1374,31 @@ export default function ModelTesting() {
       const rows = response.rows as Array<Record<string, unknown>>;
       const rowsByDocName = new Map(
         rows
-          .map((row) => [typeof row.docName === 'string' ? row.docName : '', row] as const)
-          .filter(([docName]) => Boolean(docName))
+          .map(
+            (row) =>
+              [
+                typeof row.docName === 'string' ? row.docName : '',
+                row,
+              ] as const,
+          )
+          .filter(([docName]) => Boolean(docName)),
       );
 
       return docNames.flatMap((docName) => {
         const row = rowsByDocName.get(docName);
         if (!row) return [];
 
-        const asString = (value: unknown) => (typeof value === 'string' ? value : '');
-        return [{
-          docName,
-          title: asString(row.title) || docName,
-          description: asString(row.description),
-          picture: asString(row.picture),
-          url: asString(row.url),
-        }];
+        const asString = (value: unknown) =>
+          typeof value === 'string' ? value : '';
+        return [
+          {
+            docName,
+            title: asString(row.title) || docName,
+            description: asString(row.description),
+            picture: asString(row.picture),
+            url: asString(row.url),
+          },
+        ];
       });
     } catch (error) {
       console.warn('Unable to resolve documents for model testing:', error);
@@ -1486,7 +1430,10 @@ export default function ModelTesting() {
           compareHistory,
         });
       },
-      onProgress: ({ turns: progressTurns, singleHistory: progressHistory }) => {
+      onProgress: ({
+        turns: progressTurns,
+        singleHistory: progressHistory,
+      }) => {
         setTurns(progressTurns);
         persistModeConversation('single', {
           turns: progressTurns,
@@ -1530,17 +1477,24 @@ export default function ModelTesting() {
           compareHistory: pendingHistory,
         });
       },
-      onProgress: ({ turns: progressTurns, compareHistory: progressHistory }) => {
+      onProgress: ({
+        turns: progressTurns,
+        compareHistory: progressHistory,
+      }) => {
         setTurns((previousTurns) => {
           const mergedTurns = previousTurns.map((previousTurn) => {
-            const nextTurn = progressTurns.find((turn) => turn.id === previousTurn.id);
+            const nextTurn = progressTurns.find(
+              (turn) => turn.id === previousTurn.id,
+            );
             if (!nextTurn) {
               return previousTurn;
             }
 
             return {
               ...previousTurn,
-              modelA: responseHasProgress(nextTurn.modelA) ? nextTurn.modelA : previousTurn.modelA,
+              modelA: responseHasProgress(nextTurn.modelA)
+                ? nextTurn.modelA
+                : previousTurn.modelA,
               modelB:
                 nextTurn.modelB && responseHasProgress(nextTurn.modelB)
                   ? nextTurn.modelB
@@ -1617,446 +1571,171 @@ export default function ModelTesting() {
     }
   }
 
-  if (!settings.token || !settings.workspaceId || promptBots.length === 0) {
+  if (!settings.token || !settings.workspaceId || promptBots.length === 0)
     return (
-      <div className="flex w-full justify-center px-6 py-12">
-        <div className="w-full max-w-4xl">
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl">Configuration Required</CardTitle>
-              <CardDescription>
-                Configure the FR, DE and ES Botpress bots before testing models.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        </div>
-      </div>
+      <>
+        <PageHeader title="Model Testing" />
+        <EmptyState
+          title="Configuration required"
+          description="Configure the FR, DE and ES bots in Settings."
+        />
+      </>
     );
-  }
 
   return (
-    <div className="mx-auto w-full max-w-[1480px] space-y-4">
-      <section className="space-y-4 px-1">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-[220px] shrink-0 space-y-1.5">
-            <h1 className="whitespace-nowrap text-[2.15rem] font-semibold tracking-[-0.045em] text-foreground">Model Testing</h1>
-            <p className="max-w-[260px] text-[15px] text-muted-foreground">
-              Test system prompts across models and compare outputs.
-            </p>
-          </div>
-
-          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:flex-1">
-            <div className="flex shrink-0 items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2">
-              <span className="text-sm font-medium text-slate-700">Comparison</span>
-              <Toggle checked={comparisonEnabled} onToggle={handleComparisonToggle} />
-            </div>
-
-            <div className="flex shrink-0 items-center gap-3 pt-1">
-              <span className="text-sm font-medium text-muted-foreground">Bot:</span>
-              <Select value={selectedBotId} onValueChange={setSelectedBotId}>
-                <SelectTrigger className="h-9 w-[180px]">
-                  <SelectValue placeholder="Select a bot" />
+    <div className="space-y-4">
+      <PageHeader
+        title="Model Testing"
+        description="Test prompts and compare model responses"
+        actions={
+          <Select
+            value={selectedBotId}
+            onValueChange={setSelectedBotId}
+            disabled={running}
+          >
+            <SelectTrigger aria-label="Bot" className="h-9 w-[180px]">
+              <SelectValue placeholder="Select a bot" />
+            </SelectTrigger>
+            <SelectContent>
+              {promptBots.map((bot) => (
+                <SelectItem key={bot.id} value={bot.botId}>
+                  {bot.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
+      />
+      {modelsError && (
+        <ErrorState title="Unable to load models" description={modelsError} />
+      )}
+      {modelsLoading && (
+        <LoadingState variant="inline" label="Loading models…" />
+      )}
+      {promptQuery.error && (
+        <ErrorState
+          title="Unable to load prompts"
+          onRetry={() => void promptQuery.refetch()}
+        />
+      )}
+      <PageTabs
+        value={comparisonEnabled ? 'compare' : 'single'}
+        onValueChange={(value) => {
+          if ((value === 'compare') !== comparisonEnabled)
+            handleComparisonToggle();
+        }}
+      >
+        <PageTabList aria-label="Test mode">
+          <PageTab value="single" disabled={running}>
+            Single
+          </PageTab>
+          <PageTab value="compare" disabled={running}>
+            Compare
+          </PageTab>
+        </PageTabList>
+        <PageTabPanel value={comparisonEnabled ? 'compare' : 'single'}>
+          <Toolbar
+            actions={
+              <>
+                <Button
+                  ref={settingsButtonRef}
+                  variant="outline"
+                  onClick={openTestSettings}
+                  disabled={running}
+                >
+                  Test settings
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => void saveConfig()}
+                  disabled={running}
+                >
+                  Save configuration
+                </Button>
+                <Button onClick={openPushDialog} disabled={running}>
+                  Push to live
+                </Button>
+              </>
+            }
+          >
+            <Select
+              value={selectedModelA}
+              onValueChange={handleModelAChange}
+              disabled={running || modelsLoading}
+            >
+              <SelectTrigger aria-label="Model A" className="w-[220px]">
+                <SelectValue placeholder="Model A" />
+              </SelectTrigger>
+              <SelectContent>
+                {models.map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    {getPrettyModelName(model)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {comparisonEnabled && (
+              <Select
+                value={selectedModelB}
+                onValueChange={handleModelBChange}
+                disabled={running || modelsLoading}
+              >
+                <SelectTrigger aria-label="Model B" className="w-[220px]">
+                  <SelectValue placeholder="Model B" />
                 </SelectTrigger>
                 <SelectContent>
-                  {promptBots.map((bot) => (
-                    <SelectItem key={bot.id} value={bot.botId}>
-                      {bot.name}
+                  {models.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {getPrettyModelName(model)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2">
-              <Button
-                ref={settingsButtonRef}
-                variant="outline"
-                className="h-10 rounded-lg border-slate-200 bg-white text-sm"
-                onClick={openTestSettings}
-              >
-                <Settings2 className="size-4" />
-                Test settings
-              </Button>
-              <Button
-                variant="outline"
-                className="h-10 rounded-lg border-slate-200 bg-white text-sm"
-                onClick={() => void saveConfig()}
-              >
-                <Save className="size-4" />
-                Save configuration
-              </Button>
-              <Button className="h-10 rounded-lg bg-blue-600 px-4 text-sm text-white hover:bg-blue-700" onClick={openPushDialog}>
-                Push to live
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section
-        className="min-h-0 px-1"
-      >
-        <div className="hidden" aria-hidden="true">
-          <Card
-            className={cn(
-              'border-slate-200 shadow-sm',
-              settingsCollapsed && 'cursor-pointer transition-colors hover:bg-slate-50/80'
             )}
-            onClick={settingsCollapsed ? () => setSettingsCollapsed(false) : undefined}
-          >
-            <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
-              <div className={cn('space-y-1.5', settingsCollapsed && 'hidden')}>
-                <CardTitle className="text-[1.05rem] tracking-[-0.02em]">Settings</CardTitle>
-                <CardDescription>
-                  Select providers, models, thinking, temperature, and the prompt used for this version.
-                </CardDescription>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setSettingsCollapsed((prev) => !prev);
-                }}
-              >
-                {settingsCollapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
-              </Button>
-            </CardHeader>
-
-            {settingsCollapsed && (
-              <CardContent className="flex items-center justify-center px-0 pb-4 pt-2">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-500">
-                    <Save className="size-4" />
-                  </div>
-                  <span className="[writing-mode:vertical-rl] rotate-180 text-[11px] font-medium tracking-[0.18em] text-slate-400 uppercase">
-                    Settings
-                  </span>
-                  <span
-                    className={cn(
-                      'size-2 rounded-full',
-                      configSaved ? 'bg-emerald-500' : 'bg-amber-500'
-                    )}
-                  />
-                </div>
-              </CardContent>
-            )}
-
-            {!settingsCollapsed && (
-              <CardContent className="space-y-4">
-              {modelsError && (
-                <Alert className="border-rose-200 bg-rose-50 text-rose-900">
-                  <AlertCircle className="size-4" />
-                  <AlertTitle>Erreur de chargement modeles</AlertTitle>
-                  <AlertDescription>{modelsError}</AlertDescription>
-                </Alert>
-              )}
-
-              <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="provider-a">Provider A</Label>
-                  <Select value={selectedProviderA} onValueChange={setSelectedProviderA} disabled={modelsLoading}>
-                    <SelectTrigger id="provider-a">
-                      <SelectValue placeholder="Provider" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {providers.map((provider) => (
-                        <SelectItem key={provider} value={provider}>
-                          {getProviderLabel(provider)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="model-a">Model A</Label>
-                  <Select value={selectedModelA} onValueChange={handleModelAChange} disabled={modelsLoading}>
-                    <SelectTrigger id="model-a" className="w-full min-w-0">
-                      <SelectValue placeholder="Choisir un modele">
-                        {selectedModelAData ? (
-                          <span className="block truncate">{getPrettyModelName(selectedModelAData)}</span>
-                        ) : null}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {modelsForProviderA.map((model) => (
-                        <SelectItem key={model.id} value={model.id}>
-                          {getPrettyModelName(model)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3">
-                <div className="space-y-2">
-                  <Label htmlFor="provider-cheap">Decision provider</Label>
-                  <Select value={selectedCheapProvider} onValueChange={setSelectedCheapProvider} disabled={modelsLoading}>
-                    <SelectTrigger id="provider-cheap"><SelectValue placeholder="Provider" /></SelectTrigger>
-                    <SelectContent>
-                      {providers.map((provider) => <SelectItem key={provider} value={provider}>{getProviderLabel(provider)}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="model-cheap">Decision model</Label>
-                  <Select value={selectedCheapModel} onValueChange={setSelectedCheapModel} disabled={modelsLoading}>
-                    <SelectTrigger id="model-cheap"><SelectValue placeholder="Choisir un modele de decision" /></SelectTrigger>
-                    <SelectContent>
-                      {modelsForCheapProvider.map((model) => <SelectItem key={model.id} value={model.id}>{getPrettyModelName(model)}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3">
-                <div className="space-y-2">
-                  <Label htmlFor="decision-thinking">Decision thinking</Label>
-                  <Select value={cheapReasoningEffort} onValueChange={(value) => setCheapReasoningEffort(value as ThinkingOption)}>
-                    <SelectTrigger id="decision-thinking"><SelectValue /></SelectTrigger>
-                    <SelectContent>{THINKING_OPTIONS.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="decision-temperature">Decision temperature ({cheapTemperature.toFixed(1)})</Label>
-                  <input id="decision-temperature" type="range" min={0} max={1} step={0.1} value={cheapTemperature}
-                    onChange={(event) => setCheapTemperature(Number(event.target.value))}
-                    className="mt-3 h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600" />
-                </div>
-              </div>
-
-              {comparisonEnabled && (
-                <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="provider-b">Provider B</Label>
-                    <Select value={selectedProviderB} onValueChange={setSelectedProviderB} disabled={modelsLoading}>
-                      <SelectTrigger id="provider-b">
-                        <SelectValue placeholder="Provider" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {providers.map((provider) => (
-                          <SelectItem key={provider} value={provider}>
-                            {getProviderLabel(provider)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="model-b">Model B</Label>
-                    <Select value={selectedModelB} onValueChange={handleModelBChange} disabled={modelsLoading}>
-                      <SelectTrigger id="model-b" className="w-full min-w-0">
-                        <SelectValue placeholder="Choisir un modele">
-                          {selectedModelBData ? (
-                            <span className="block truncate">{getPrettyModelName(selectedModelBData)}</span>
-                          ) : null}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {modelsForProviderB.map((model) => (
-                          <SelectItem key={model.id} value={model.id}>
-                            {getPrettyModelName(model)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label>Response thinking</Label>
-                <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-slate-700">Enable thinking</span>
-                    <Toggle
-                      checked={thinking !== 'none'}
-                      onToggle={() => setThinking((prev) => (prev === 'none' ? staticThinking : 'none'))}
-                    />
-                  </div>
-
-                  {thinking !== 'none' && (
-                    <>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm text-slate-700">Dynamic</span>
-                        <Toggle
-                          checked={thinking === 'dynamic'}
-                          onToggle={() => setThinking((prev) => (prev === 'dynamic' ? staticThinking : 'dynamic'))}
-                        />
-                      </div>
-
-                      {thinking !== 'dynamic' && (
-                        <div className="grid grid-cols-3 gap-1 rounded-xl border border-slate-200 bg-white p-1">
-                          {STATIC_THINKING_OPTIONS.map((option) => (
-                            <button
-                              key={option}
-                              type="button"
-                              onClick={() => {
-                                setStaticThinking(option);
-                                setThinking(option);
-                              }}
-                              className={cn(
-                                'rounded-lg px-2 py-2 text-sm font-medium capitalize transition-colors',
-                                staticThinking === option
-                                  ? 'bg-blue-600 text-white shadow-sm'
-                                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                              )}
-                            >
-                              {option}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="sidebar-temperature">Response temperature</Label>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="text-slate-600">Precision</span>
-                    <span className="font-medium text-slate-900">{temperature.toFixed(1)}</span>
-                  </div>
-                  <input
-                    id="sidebar-temperature"
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.1}
-                    value={temperature}
-                    onChange={(event) => {
-                      const value = Number(event.target.value);
-                      setTemperature(Number.isFinite(value) ? value : DEFAULT_TEMPERATURE);
-                    }}
-                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600"
-                  />
-                  <div className="mt-2 flex justify-between text-xs text-slate-500">
-                    <span>0.0</span>
-                    <span>1.0</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="prompt-selector">Prompt</Label>
-                <Select value={selectedPromptKey} onValueChange={setSelectedPromptKey}>
-                  <SelectTrigger id="prompt-selector" className="w-full min-w-0">
-                    <SelectValue placeholder="Choisir un prompt">
-                      {selectedPrompt ? <span className="block truncate">{selectedPrompt.label || 'Sans label'}</span> : null}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {promptOptions.map((option) => (
-                      <SelectItem key={option.key} value={option.key}>
-                        <div className="flex items-center gap-2">
-                          <span className="truncate">{option.label}</span>
-                          {option.version === 'testing' && (
-                            <Badge className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50">
-                              Test
-                            </Badge>
-                          )}
-                          {option.version === 'live' && (
-                            <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
-                              Live
-                            </Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {selectedPrompt ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
-                      {selectedPrompt.version === 'testing'
-                        ? 'Test Prompt'
-                        : selectedPrompt.version === 'live'
-                          ? 'Live Prompt'
-                          : 'Legacy'}
-                    </Badge>
-                    <span className="truncate">{selectedPrompt.label || 'Sans label'}</span>
-                  </div>
-                  <p className="mt-2 line-clamp-6 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                    {selectedPrompt.prompt || 'Prompt vide.'}
-                  </p>
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
-                  Aucun prompt disponible pour cette version.
-                </div>
-              )}
-
-              <Badge
-                className={cn(
-                  'rounded-md border px-2.5 py-1 text-xs',
-                  configSaved
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                    : 'border-amber-200 bg-amber-50 text-amber-700'
-                )}
-              >
-                {configSaved ? 'Sauvegarde' : 'Non sauvegarde'}
-              </Badge>
-              </CardContent>
-            )}
-          </Card>
-        </div>
-
+            <span className="text-xs text-muted-foreground">
+              Thinking: {thinking} · Temperature: {temperature}
+            </span>
+          </Toolbar>
+        </PageTabPanel>
+      </PageTabs>
+      <section className="min-h-0 px-1">
         <div className="min-w-0 min-h-0">
-          <div className="flex h-[calc(100vh-120px)] min-h-[860px] flex-col overflow-hidden border border-slate-200 bg-white">
+          <div className="flex min-w-0 flex-col">
             <div className="px-4 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-slate-950">
-                    {comparisonEnabled ? 'Comparison Chat' : 'Chat'}
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    {comparisonEnabled
-                      ? 'The same prompt is sent to both models with the same context.'
-                      : 'Single-model test conversation for the selected configuration.'}
-                  </p>
-                </div>
-              </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
-                  <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                  <Badge variant="info">
                     A: {getPrettyModelName(selectedModelAData)}
                   </Badge>
                   {comparisonEnabled && (
-                    <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
+                    <Badge variant="neutral">
                       B: {getPrettyModelName(selectedModelBData)}
                     </Badge>
                   )}
-                  <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
-                    Decision: {getPrettyModelName(models.find((model) => model.id === selectedCheapModel))}
-                  </Badge>
-                  <Badge variant="outline" className="max-w-[260px] truncate border-slate-200 bg-white text-slate-600">
-                    Prompt: {selectedPrompt?.label || 'Not selected'}
+                  <Badge
+                    variant="neutral"
+                    className="border-border bg-muted text-foreground"
+                  >
+                    Decision:{' '}
+                    {getPrettyModelName(
+                      models.find((model) => model.id === selectedCheapModel),
+                    )}
                   </Badge>
                   <Badge
-                    className={cn(
-                      'border',
-                      configSaved
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                        : 'border-amber-200 bg-amber-50 text-amber-700'
-                    )}
+                    variant="neutral"
+                    className="max-w-[260px] truncate border-border bg-surface text-foreground"
                   >
+                    Prompt: {selectedPrompt?.label || 'Not selected'}
+                  </Badge>
+                  <Badge variant={configSaved ? 'success' : 'warning'}>
                     {configSaved ? 'Saved' : 'Unsaved'}
                   </Badge>
                 </div>
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-9 rounded-lg border-slate-200 bg-white"
+                  className="h-9 rounded-lg border-border bg-surface"
+                  disabled={running}
                   onClick={clearConversation}
                 >
                   <Plus className="size-4" />
@@ -2065,45 +1744,75 @@ export default function ModelTesting() {
               </div>
             </div>
 
-            <ScrollArea className="min-h-0 flex-1 border-t border-slate-200 bg-slate-50/40">
+            <TestComposer
+              value={userMessage}
+              onChange={setUserMessage}
+              onRun={() => void handleRun()}
+              running={running}
+              compare={comparisonEnabled}
+              disabled={
+                running ||
+                modelsLoading ||
+                !userMessage.trim() ||
+                !selectedModelA ||
+                !selectedPrompt?.prompt ||
+                (comparisonEnabled &&
+                  (!selectedModelB || selectedModelA === selectedModelB))
+              }
+            />
+            <h2 className="mt-6 text-base font-semibold">Responses</h2>
+            <ScrollArea className="max-h-[70vh] border-t">
               <div className="space-y-5 px-4 py-4">
                 {turns.length === 0 ? (
-                  <div className="flex min-h-[420px] items-center justify-center">
+                  <div className="flex min-h-[160px] items-center justify-center">
                     <div className="max-w-md text-center">
-                      <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
-                        {comparisonEnabled ? <Bot className="size-5" /> : <Send className="size-5" />}
+                      <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full border border-border bg-surface text-muted-foreground">
+                        {comparisonEnabled ? (
+                          <Bot className="size-5" />
+                        ) : (
+                          <Send className="size-5" />
+                        )}
                       </div>
-                      <p className="text-lg font-medium text-slate-900">
-                        {comparisonEnabled ? 'Run your first comparison' : 'Start a conversation'}
+                      <p className="text-lg font-medium text-foreground">
+                        {comparisonEnabled
+                          ? 'Run your first comparison'
+                          : 'Start a conversation'}
                       </p>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">
-                        Write a user message below, then {comparisonEnabled ? 'run both models in parallel.' : 'test the selected model.'}
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        Write a user message above, then{' '}
+                        {comparisonEnabled
+                          ? 'run both models in parallel.'
+                          : 'test the selected model.'}
                       </p>
                     </div>
                   </div>
                 ) : (
                   turns.map((turn) => (
                     <article key={turn.id} className="space-y-4">
-                      <UserMessageCard text={turn.userText} createdAt={turn.createdAt} />
+                      <UserMessage
+                        text={turn.userText}
+                        createdAt={turn.createdAt}
+                      />
 
                       {turn.modelB ? (
-                        <div className="grid gap-4 lg:grid-cols-2">
-                          <ResponseCard
-                            response={turn.modelA}
-                            title={getPrettyModelName(selectedModelAData)}
-                            accentClassName="bg-blue-500"
-                          />
-                          <ResponseCard
-                            response={turn.modelB}
-                            title={getPrettyModelName(selectedModelBData)}
-                            accentClassName="bg-orange-400"
-                          />
-                        </div>
+                        <SplitPane
+                          left={
+                            <ResponsePanel
+                              response={turn.modelA}
+                              title={getPrettyModelName(selectedModelAData)}
+                            />
+                          }
+                          right={
+                            <ResponsePanel
+                              response={turn.modelB}
+                              title={getPrettyModelName(selectedModelBData)}
+                            />
+                          }
+                        />
                       ) : (
-                        <ResponseCard
+                        <ResponsePanel
                           response={turn.modelA}
                           title={getPrettyModelName(selectedModelAData)}
-                          accentClassName="bg-blue-500"
                         />
                       )}
                     </article>
@@ -2112,57 +1821,16 @@ export default function ModelTesting() {
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
-
-            <div className="border-t border-slate-200 bg-white px-4 py-4">
-              <div className="border border-slate-200 p-3">
-                <Textarea
-                  value={userMessage}
-                  onChange={(event) => setUserMessage(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      if (!running) {
-                        void handleRun();
-                      }
-                    }
-                  }}
-                  placeholder={
-                    comparisonEnabled
-                      ? 'Write the user message to compare both models...'
-                      : 'Write the user message to test the selected model...'
-                  }
-                  className="min-h-[92px] resize-none border-0 bg-transparent px-1 py-1 text-[15px] leading-7 shadow-none focus-visible:ring-0"
-                />
-
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="text-xs text-slate-500">
-                    {comparisonEnabled
-                      ? 'The same conversation history is sent to both models.'
-                      : 'Conversation history is preserved for the selected model.'}
-                  </div>
-
-                  <Button
-                    onClick={() => void handleRun()}
-                    disabled={
-                      running ||
-                      modelsLoading ||
-                      !selectedModelA ||
-                      !selectedPrompt?.prompt ||
-                      (comparisonEnabled && (!selectedModelB || selectedModelA === selectedModelB))
-                    }
-                    className="h-10 rounded-lg bg-blue-600 px-4 text-sm text-white hover:bg-blue-700"
-                  >
-                    {running ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                    {comparisonEnabled ? 'Run Comparison' : 'Send'}
-                  </Button>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
-      <Dialog open={testSettingsOpen} onOpenChange={(open) => (open ? setTestSettingsOpen(true) : closeTestSettings())}>
+      <Dialog
+        open={testSettingsOpen}
+        onOpenChange={(open) =>
+          open ? setTestSettingsOpen(true) : closeTestSettings()
+        }
+      >
         <DialogContent
           className="grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-[1100px] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 p-0 sm:max-w-[1100px]"
           onOpenAutoFocus={(event) => {
@@ -2170,17 +1838,18 @@ export default function ModelTesting() {
             document.getElementById('test-settings-provider-a')?.focus();
           }}
         >
-          <DialogHeader className="border-b border-slate-200 px-5 py-5 pr-14 sm:px-6">
+          <DialogHeader className="border-b border-border px-5 py-5 pr-14 sm:px-6">
             <DialogTitle>Test settings</DialogTitle>
             <DialogDescription>
-              Configure the response and decision models used for this test session.
+              Configure the response and decision models used for this test
+              session.
             </DialogDescription>
           </DialogHeader>
 
           {testSettingsDraft && (
             <div className="min-h-0 overflow-y-auto px-5 py-5 sm:px-6">
               {modelsError && (
-                <Alert className="mb-5 border-rose-200 bg-rose-50 text-rose-900">
+                <Alert className="mb-5 border-danger/30 bg-danger/10 text-danger">
                   <AlertCircle className="size-4" />
                   <AlertTitle>Unable to load models</AlertTitle>
                   <AlertDescription>{modelsError}</AlertDescription>
@@ -2188,31 +1857,71 @@ export default function ModelTesting() {
               )}
 
               <div className="grid gap-5 lg:grid-cols-2">
-                <section className="space-y-5 rounded-xl border border-slate-200 p-4 sm:p-5">
+                <section className="space-y-5 border-t pt-4">
                   <div>
-                    <h3 className="font-semibold text-slate-950">Response models</h3>
-                    <p className="mt-1 text-sm text-slate-500">Models that compose the final response.</p>
+                    <h3 className="font-semibold text-foreground">
+                      Response models
+                    </h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Models that compose the final response.
+                    </p>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
                     <div className="space-y-2">
-                      <Label htmlFor="test-settings-provider-a">Provider A</Label>
+                      <Label htmlFor="test-settings-provider-a">
+                        Provider A
+                      </Label>
                       <Select
                         value={testSettingsDraft.selectedProviderA}
                         onValueChange={(provider) => {
-                          const firstModel = models.find((model) => getProviderFromModelId(model.id) === provider);
-                          setTestSettingsDraft((draft) => draft ? { ...draft, selectedProviderA: provider, selectedModelA: firstModel?.id ?? '' } : draft);
+                          const firstModel = models.find(
+                            (model) =>
+                              getProviderFromModelId(model.id) === provider,
+                          );
+                          setTestSettingsDraft((draft) =>
+                            draft
+                              ? {
+                                  ...draft,
+                                  selectedProviderA: provider,
+                                  selectedModelA: firstModel?.id ?? '',
+                                }
+                              : draft,
+                          );
                         }}
                       >
-                        <SelectTrigger id="test-settings-provider-a"><SelectValue placeholder="Provider" /></SelectTrigger>
-                        <SelectContent>{providers.map((provider) => <SelectItem key={provider} value={provider}>{getProviderLabel(provider)}</SelectItem>)}</SelectContent>
+                        <SelectTrigger id="test-settings-provider-a">
+                          <SelectValue placeholder="Provider" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {providers.map((provider) => (
+                            <SelectItem key={provider} value={provider}>
+                              {getProviderLabel(provider)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="test-settings-model-a">Model A</Label>
-                      <Select value={testSettingsDraft.selectedModelA} onValueChange={(model) => setTestSettingsDraft((draft) => draft ? { ...draft, selectedModelA: model } : draft)}>
-                        <SelectTrigger id="test-settings-model-a"><SelectValue placeholder="Select model A" /></SelectTrigger>
-                        <SelectContent>{draftModelsForProviderA.map((model) => <SelectItem key={model.id} value={model.id}>{getPrettyModelName(model)}</SelectItem>)}</SelectContent>
+                      <Select
+                        value={testSettingsDraft.selectedModelA}
+                        onValueChange={(model) =>
+                          setTestSettingsDraft((draft) =>
+                            draft ? { ...draft, selectedModelA: model } : draft,
+                          )
+                        }
+                      >
+                        <SelectTrigger id="test-settings-model-a">
+                          <SelectValue placeholder="Select model A" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {draftModelsForProviderA.map((model) => (
+                            <SelectItem key={model.id} value={model.id}>
+                              {getPrettyModelName(model)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </div>
                   </div>
@@ -2220,23 +1929,61 @@ export default function ModelTesting() {
                   {comparisonEnabled && (
                     <div className="grid gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
                       <div className="space-y-2">
-                        <Label htmlFor="test-settings-provider-b">Provider B</Label>
+                        <Label htmlFor="test-settings-provider-b">
+                          Provider B
+                        </Label>
                         <Select
                           value={testSettingsDraft.selectedProviderB}
                           onValueChange={(provider) => {
-                            const firstModel = models.find((model) => getProviderFromModelId(model.id) === provider);
-                            setTestSettingsDraft((draft) => draft ? { ...draft, selectedProviderB: provider, selectedModelB: firstModel?.id ?? '' } : draft);
+                            const firstModel = models.find(
+                              (model) =>
+                                getProviderFromModelId(model.id) === provider,
+                            );
+                            setTestSettingsDraft((draft) =>
+                              draft
+                                ? {
+                                    ...draft,
+                                    selectedProviderB: provider,
+                                    selectedModelB: firstModel?.id ?? '',
+                                  }
+                                : draft,
+                            );
                           }}
                         >
-                          <SelectTrigger id="test-settings-provider-b"><SelectValue placeholder="Provider" /></SelectTrigger>
-                          <SelectContent>{providers.map((provider) => <SelectItem key={provider} value={provider}>{getProviderLabel(provider)}</SelectItem>)}</SelectContent>
+                          <SelectTrigger id="test-settings-provider-b">
+                            <SelectValue placeholder="Provider" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {providers.map((provider) => (
+                              <SelectItem key={provider} value={provider}>
+                                {getProviderLabel(provider)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="test-settings-model-b">Model B</Label>
-                        <Select value={testSettingsDraft.selectedModelB} onValueChange={(model) => setTestSettingsDraft((draft) => draft ? { ...draft, selectedModelB: model } : draft)}>
-                          <SelectTrigger id="test-settings-model-b"><SelectValue placeholder="Select model B" /></SelectTrigger>
-                          <SelectContent>{draftModelsForProviderB.map((model) => <SelectItem key={model.id} value={model.id}>{getPrettyModelName(model)}</SelectItem>)}</SelectContent>
+                        <Select
+                          value={testSettingsDraft.selectedModelB}
+                          onValueChange={(model) =>
+                            setTestSettingsDraft((draft) =>
+                              draft
+                                ? { ...draft, selectedModelB: model }
+                                : draft,
+                            )
+                          }
+                        >
+                          <SelectTrigger id="test-settings-model-b">
+                            <SelectValue placeholder="Select model B" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {draftModelsForProviderB.map((model) => (
+                              <SelectItem key={model.id} value={model.id}>
+                                {getPrettyModelName(model)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
                         </Select>
                       </div>
                     </div>
@@ -2244,103 +1991,284 @@ export default function ModelTesting() {
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="test-settings-response-thinking">Reasoning effort</Label>
-                      <Select value={testSettingsDraft.thinking} onValueChange={(value) => setTestSettingsDraft((draft) => draft ? { ...draft, thinking: value as ThinkingOption } : draft)}>
-                        <SelectTrigger id="test-settings-response-thinking"><SelectValue /></SelectTrigger>
-                        <SelectContent>{THINKING_OPTIONS.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
+                      <Label htmlFor="test-settings-response-thinking">
+                        Reasoning effort
+                      </Label>
+                      <Select
+                        value={testSettingsDraft.thinking}
+                        onValueChange={(value) =>
+                          setTestSettingsDraft((draft) =>
+                            draft
+                              ? { ...draft, thinking: value as ThinkingOption }
+                              : draft,
+                          )
+                        }
+                      >
+                        <SelectTrigger id="test-settings-response-thinking">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {THINKING_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-3">
-                      <Label htmlFor="test-settings-response-temperature">Temperature <span className="font-normal text-slate-500">{testSettingsDraft.temperature.toFixed(1)}</span></Label>
-                      <input id="test-settings-response-temperature" type="range" min={0} max={1} step={0.1} value={testSettingsDraft.temperature} onChange={(event) => setTestSettingsDraft((draft) => draft ? { ...draft, temperature: Number(event.target.value) } : draft)} className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600" />
+                      <Label htmlFor="test-settings-response-temperature">
+                        Temperature{' '}
+                        <span className="font-normal text-muted-foreground">
+                          {testSettingsDraft.temperature.toFixed(1)}
+                        </span>
+                      </Label>
+                      <input
+                        id="test-settings-response-temperature"
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.1}
+                        value={testSettingsDraft.temperature}
+                        onChange={(event) =>
+                          setTestSettingsDraft((draft) =>
+                            draft
+                              ? {
+                                  ...draft,
+                                  temperature: Number(event.target.value),
+                                }
+                              : draft,
+                          )
+                        }
+                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary"
+                      />
                     </div>
                   </div>
                 </section>
 
-                <section className="space-y-5 rounded-xl border border-slate-200 p-4 sm:p-5">
+                <section className="space-y-5 border-t pt-4">
                   <div>
-                    <h3 className="font-semibold text-slate-950">Decision model</h3>
-                    <p className="mt-1 text-sm text-slate-500">Model used for routing and tool decisions.</p>
+                    <h3 className="font-semibold text-foreground">
+                      Decision model
+                    </h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Model used for routing and tool decisions.
+                    </p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
                     <div className="space-y-2">
-                      <Label htmlFor="test-settings-decision-provider">Provider</Label>
+                      <Label htmlFor="test-settings-decision-provider">
+                        Provider
+                      </Label>
                       <Select
                         value={testSettingsDraft.selectedCheapProvider}
                         onValueChange={(provider) => {
-                          const firstModel = models.find((model) => getProviderFromModelId(model.id) === provider);
-                          setTestSettingsDraft((draft) => draft ? { ...draft, selectedCheapProvider: provider, selectedCheapModel: firstModel?.id ?? '' } : draft);
+                          const firstModel = models.find(
+                            (model) =>
+                              getProviderFromModelId(model.id) === provider,
+                          );
+                          setTestSettingsDraft((draft) =>
+                            draft
+                              ? {
+                                  ...draft,
+                                  selectedCheapProvider: provider,
+                                  selectedCheapModel: firstModel?.id ?? '',
+                                }
+                              : draft,
+                          );
                         }}
                       >
-                        <SelectTrigger id="test-settings-decision-provider"><SelectValue placeholder="Provider" /></SelectTrigger>
-                        <SelectContent>{providers.map((provider) => <SelectItem key={provider} value={provider}>{getProviderLabel(provider)}</SelectItem>)}</SelectContent>
+                        <SelectTrigger id="test-settings-decision-provider">
+                          <SelectValue placeholder="Provider" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {providers.map((provider) => (
+                            <SelectItem key={provider} value={provider}>
+                              {getProviderLabel(provider)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="test-settings-decision-model">Model</Label>
-                      <Select value={testSettingsDraft.selectedCheapModel} onValueChange={(model) => setTestSettingsDraft((draft) => draft ? { ...draft, selectedCheapModel: model } : draft)}>
-                        <SelectTrigger id="test-settings-decision-model"><SelectValue placeholder="Select decision model" /></SelectTrigger>
-                        <SelectContent>{draftDecisionModels.map((model) => <SelectItem key={model.id} value={model.id}>{getPrettyModelName(model)}</SelectItem>)}</SelectContent>
+                      <Label htmlFor="test-settings-decision-model">
+                        Model
+                      </Label>
+                      <Select
+                        value={testSettingsDraft.selectedCheapModel}
+                        onValueChange={(model) =>
+                          setTestSettingsDraft((draft) =>
+                            draft
+                              ? { ...draft, selectedCheapModel: model }
+                              : draft,
+                          )
+                        }
+                      >
+                        <SelectTrigger id="test-settings-decision-model">
+                          <SelectValue placeholder="Select decision model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {draftDecisionModels.map((model) => (
+                            <SelectItem key={model.id} value={model.id}>
+                              {getPrettyModelName(model)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </div>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="test-settings-decision-thinking">Reasoning effort</Label>
-                      <Select value={testSettingsDraft.cheapReasoningEffort} onValueChange={(value) => setTestSettingsDraft((draft) => draft ? { ...draft, cheapReasoningEffort: value as ThinkingOption } : draft)}>
-                        <SelectTrigger id="test-settings-decision-thinking"><SelectValue /></SelectTrigger>
-                        <SelectContent>{THINKING_OPTIONS.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
+                      <Label htmlFor="test-settings-decision-thinking">
+                        Reasoning effort
+                      </Label>
+                      <Select
+                        value={testSettingsDraft.cheapReasoningEffort}
+                        onValueChange={(value) =>
+                          setTestSettingsDraft((draft) =>
+                            draft
+                              ? {
+                                  ...draft,
+                                  cheapReasoningEffort: value as ThinkingOption,
+                                }
+                              : draft,
+                          )
+                        }
+                      >
+                        <SelectTrigger id="test-settings-decision-thinking">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {THINKING_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-3">
-                      <Label htmlFor="test-settings-decision-temperature">Temperature <span className="font-normal text-slate-500">{testSettingsDraft.cheapTemperature.toFixed(1)}</span></Label>
-                      <input id="test-settings-decision-temperature" type="range" min={0} max={1} step={0.1} value={testSettingsDraft.cheapTemperature} onChange={(event) => setTestSettingsDraft((draft) => draft ? { ...draft, cheapTemperature: Number(event.target.value) } : draft)} className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600" />
+                      <Label htmlFor="test-settings-decision-temperature">
+                        Temperature{' '}
+                        <span className="font-normal text-muted-foreground">
+                          {testSettingsDraft.cheapTemperature.toFixed(1)}
+                        </span>
+                      </Label>
+                      <input
+                        id="test-settings-decision-temperature"
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.1}
+                        value={testSettingsDraft.cheapTemperature}
+                        onChange={(event) =>
+                          setTestSettingsDraft((draft) =>
+                            draft
+                              ? {
+                                  ...draft,
+                                  cheapTemperature: Number(event.target.value),
+                                }
+                              : draft,
+                          )
+                        }
+                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary"
+                      />
                     </div>
                   </div>
                 </section>
               </div>
 
-              <section className="mt-5 space-y-4 rounded-xl border border-slate-200 p-4 sm:p-5">
+              <section className="mt-5 space-y-4 border-t pt-4">
                 <div>
-                  <h3 className="font-semibold text-slate-950">Prompt</h3>
-                  <p className="mt-1 text-sm text-slate-500">Choose the system prompt used by both response models.</p>
+                  <h3 className="font-semibold text-foreground">Prompt</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Choose the system prompt used by both response models.
+                  </p>
                 </div>
-                <Select value={testSettingsDraft.selectedPromptKey} onValueChange={(key) => setTestSettingsDraft((draft) => draft ? { ...draft, selectedPromptKey: key } : draft)}>
-                  <SelectTrigger id="test-settings-prompt"><SelectValue placeholder="Select a prompt" /></SelectTrigger>
-                  <SelectContent>{promptOptions.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent>
+                <Select
+                  value={testSettingsDraft.selectedPromptKey}
+                  onValueChange={(key) =>
+                    setTestSettingsDraft((draft) =>
+                      draft ? { ...draft, selectedPromptKey: key } : draft,
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    id="test-settings-prompt"
+                    aria-label="System prompt"
+                  >
+                    <SelectValue placeholder="Select a prompt" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {promptOptions.map((option) => (
+                      <SelectItem key={option.key} value={option.key}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
                 {draftPrompt ? (
-                  <div className="rounded-lg bg-slate-50 p-4">
+                  <div className="rounded-lg bg-muted p-4">
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="bg-white">{draftPrompt.version}</Badge>
-                      <span className="truncate text-sm font-medium text-slate-700">{draftPrompt.label || 'Untitled prompt'}</span>
+                      <Badge variant="neutral" className="bg-surface">
+                        {draftPrompt.version}
+                      </Badge>
+                      <span className="truncate text-sm font-medium text-foreground">
+                        {draftPrompt.label || 'Untitled prompt'}
+                      </span>
                     </div>
-                    <p className="mt-3 max-h-36 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-slate-600">{draftPrompt.prompt || 'Empty prompt.'}</p>
+                    <p className="mt-3 max-h-36 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-foreground">
+                      {draftPrompt.prompt || 'Empty prompt.'}
+                    </p>
                   </div>
                 ) : null}
               </section>
             </div>
           )}
 
-          <DialogFooter className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
-            <Button variant="outline" onClick={closeTestSettings}>Cancel</Button>
-            <Button className="bg-blue-600 text-white hover:bg-blue-700" disabled={!canApplyTestSettings || modelsLoading} onClick={applyTestSettings}>Apply</Button>
+          <DialogFooter className="border-t border-border bg-surface px-5 py-4 sm:px-6">
+            <Button variant="outline" onClick={closeTestSettings}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              disabled={!canApplyTestSettings || modelsLoading}
+              onClick={applyTestSettings}
+            >
+              Apply
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={pushDialogOpen} onOpenChange={setPushDialogOpen}>
-        <DialogContent className="sm:max-w-[440px]">
+      <Dialog
+        open={pushDialogOpen}
+        onOpenChange={(open) => !pushConfigSaving && setPushDialogOpen(open)}
+      >
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[440px]">
           <DialogHeader>
             <DialogTitle>Push to live</DialogTitle>
+            <DialogDescription>
+              Confirm the response and decision model settings to publish to the
+              selected bot.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-model">
+              <Label
+                className="flex flex-wrap items-center gap-2"
+                htmlFor="push-model"
+              >
                 Response model
-                <Badge variant="outline" className="max-w-full truncate border-slate-200 bg-slate-50 text-slate-500">
-                  Current: {pushConfigLoading ? 'loading' : liveStrongModelConfig?.model || '-'}
+                <Badge
+                  variant="neutral"
+                  className="max-w-full truncate border-border bg-muted text-muted-foreground"
+                >
+                  Current:{' '}
+                  {pushConfigLoading
+                    ? 'loading'
+                    : liveStrongModelConfig?.model || '-'}
                 </Badge>
               </Label>
               <Select value={pushModelId} onValueChange={setPushModelId}>
@@ -2350,7 +2278,8 @@ export default function ModelTesting() {
                 <SelectContent>
                   {models.map((model) => (
                     <SelectItem key={model.id} value={model.id}>
-                      {getProviderLabel(getProviderFromModelId(model.id))} - {getPrettyModelName(model)}
+                      {getProviderLabel(getProviderFromModelId(model.id))} -{' '}
+                      {getPrettyModelName(model)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -2358,18 +2287,33 @@ export default function ModelTesting() {
             </div>
 
             <div className="space-y-2">
-              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-cheap-model">
+              <Label
+                className="flex flex-wrap items-center gap-2"
+                htmlFor="push-cheap-model"
+              >
                 Decision model
-                <Badge variant="outline" className="max-w-full truncate border-slate-200 bg-slate-50 text-slate-500">
-                  Current: {pushConfigLoading ? 'loading' : liveCheapModelConfig?.model || '-'}
+                <Badge
+                  variant="neutral"
+                  className="max-w-full truncate border-border bg-muted text-muted-foreground"
+                >
+                  Current:{' '}
+                  {pushConfigLoading
+                    ? 'loading'
+                    : liveCheapModelConfig?.model || '-'}
                 </Badge>
               </Label>
-              <Select value={pushCheapModelId} onValueChange={setPushCheapModelId}>
-                <SelectTrigger id="push-cheap-model"><SelectValue placeholder="Choisir un modele de decision" /></SelectTrigger>
+              <Select
+                value={pushCheapModelId}
+                onValueChange={setPushCheapModelId}
+              >
+                <SelectTrigger id="push-cheap-model">
+                  <SelectValue placeholder="Choisir un modele de decision" />
+                </SelectTrigger>
                 <SelectContent>
                   {models.map((model) => (
                     <SelectItem key={model.id} value={model.id}>
-                      {getProviderLabel(getProviderFromModelId(model.id))} - {getPrettyModelName(model)}
+                      {getProviderLabel(getProviderFromModelId(model.id))} -{' '}
+                      {getPrettyModelName(model)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -2377,42 +2321,93 @@ export default function ModelTesting() {
             </div>
 
             <div className="space-y-2">
-              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-decision-temperature">
+              <Label
+                className="flex flex-wrap items-center gap-2"
+                htmlFor="push-decision-temperature"
+              >
                 Decision temperature
-                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-500">
-                  Current: {pushConfigLoading ? 'loading' : liveCheapModelConfig?.temperature.toFixed(1) ?? '-'}
+                <Badge
+                  variant="neutral"
+                  className="border-border bg-muted text-muted-foreground"
+                >
+                  Current:{' '}
+                  {pushConfigLoading
+                    ? 'loading'
+                    : (liveCheapModelConfig?.temperature.toFixed(1) ?? '-')}
                 </Badge>
               </Label>
-              <input id="push-decision-temperature" type="range" min={0} max={1} step={0.1} value={pushCheapTemperature}
-                onChange={(event) => setPushCheapTemperature(event.target.value)}
-                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600" />
-              <div className="text-right text-sm font-medium">{(Number(pushCheapTemperature) || 0).toFixed(1)}</div>
+              <input
+                id="push-decision-temperature"
+                type="range"
+                min={0}
+                max={1}
+                step={0.1}
+                value={pushCheapTemperature}
+                onChange={(event) =>
+                  setPushCheapTemperature(event.target.value)
+                }
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary"
+              />
+              <div className="text-right text-sm font-medium">
+                {(Number(pushCheapTemperature) || 0).toFixed(1)}
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-decision-thinking">
+              <Label
+                className="flex flex-wrap items-center gap-2"
+                htmlFor="push-decision-thinking"
+              >
                 Decision thinking
-                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-500">
-                  Current: {pushConfigLoading ? 'loading' : liveCheapModelConfig?.reasoningEffort || '-'}
+                <Badge
+                  variant="neutral"
+                  className="border-border bg-muted text-muted-foreground"
+                >
+                  Current:{' '}
+                  {pushConfigLoading
+                    ? 'loading'
+                    : liveCheapModelConfig?.reasoningEffort || '-'}
                 </Badge>
               </Label>
-              <Select value={pushCheapReasoningEffort} onValueChange={(value) => setPushCheapReasoningEffort(value as ThinkingOption)}>
-                <SelectTrigger id="push-decision-thinking"><SelectValue /></SelectTrigger>
-                <SelectContent>{THINKING_OPTIONS.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
+              <Select
+                value={pushCheapReasoningEffort}
+                onValueChange={(value) =>
+                  setPushCheapReasoningEffort(value as ThinkingOption)
+                }
+              >
+                <SelectTrigger id="push-decision-thinking">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {THINKING_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-temperature">
+              <Label
+                className="flex flex-wrap items-center gap-2"
+                htmlFor="push-temperature"
+              >
                 Response temperature
-                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-500">
-                  Current: {pushConfigLoading ? 'loading' : liveStrongModelConfig?.temperature.toFixed(1) ?? '-'}
+                <Badge
+                  variant="neutral"
+                  className="border-border bg-muted text-muted-foreground"
+                >
+                  Current:{' '}
+                  {pushConfigLoading
+                    ? 'loading'
+                    : (liveStrongModelConfig?.temperature.toFixed(1) ?? '-')}
                 </Badge>
               </Label>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+              <div className="rounded-xl border border-border bg-muted px-3 py-3">
                 <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="text-slate-600">Precision</span>
-                  <span className="font-medium text-slate-900">
+                  <span className="text-foreground">Precision</span>
+                  <span className="font-medium text-foreground">
                     {(Number(pushTemperature) || 0).toFixed(1)}
                   </span>
                 </div>
@@ -2424,9 +2419,9 @@ export default function ModelTesting() {
                   step={0.1}
                   value={pushTemperature}
                   onChange={(event) => setPushTemperature(event.target.value)}
-                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600"
+                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary"
                 />
-                <div className="mt-2 flex justify-between text-xs text-slate-500">
+                <div className="mt-2 flex justify-between text-xs text-muted-foreground">
                   <span>0.0</span>
                   <span>1.0</span>
                 </div>
@@ -2434,13 +2429,27 @@ export default function ModelTesting() {
             </div>
 
             <div className="space-y-2">
-              <Label className="flex flex-wrap items-center gap-2" htmlFor="push-reasoning-effort">
+              <Label
+                className="flex flex-wrap items-center gap-2"
+                htmlFor="push-reasoning-effort"
+              >
                 Response thinking
-                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-500">
-                  Current: {pushConfigLoading ? 'loading' : liveStrongModelConfig?.reasoningEffort || '-'}
+                <Badge
+                  variant="neutral"
+                  className="border-border bg-muted text-muted-foreground"
+                >
+                  Current:{' '}
+                  {pushConfigLoading
+                    ? 'loading'
+                    : liveStrongModelConfig?.reasoningEffort || '-'}
                 </Badge>
               </Label>
-              <Select value={pushReasoningEffort} onValueChange={(value) => setPushReasoningEffort(value as ThinkingOption)}>
+              <Select
+                value={pushReasoningEffort}
+                onValueChange={(value) =>
+                  setPushReasoningEffort(value as ThinkingOption)
+                }
+              >
                 <SelectTrigger id="push-reasoning-effort">
                   <SelectValue placeholder="Choisir le thinking" />
                 </SelectTrigger>
@@ -2457,11 +2466,18 @@ export default function ModelTesting() {
 
           <DialogFooter>
             <Button
-              className="bg-blue-600 text-white hover:bg-blue-700"
-              disabled={pushConfigLoading || pushConfigSaving || !liveStrongModelConfig || !liveCheapModelConfig}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              disabled={
+                pushConfigLoading ||
+                pushConfigSaving ||
+                !liveStrongModelConfig ||
+                !liveCheapModelConfig
+              }
               onClick={() => void handlePushToLive()}
             >
-              {pushConfigSaving ? <Loader2 className="size-4 animate-spin" /> : null}
+              {pushConfigSaving ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}
               Push
             </Button>
           </DialogFooter>
