@@ -1,1 +1,0 @@
-import{j as s,B as o}from"./index-BXegeNXI.js";import{T as a}from"./Toolbar-4OpTPwWY.js";function n({children:r,onReset:t,resetDisabled:i=!1}){return s.jsx(a,{label:"Filters",actions:t&&s.jsx(o,{type:"button",variant:"ghost",size:"sm",disabled:i,onClick:t,children:"Reset filters"}),children:r})}export{n as F};

@@ -19,6 +19,10 @@ export default defineConfig(({ mode }) => {
   })
   
   return {
+    // GitHub Pages serves the app from /dashboardBayrol/ rather than /
+    // Relative asset URLs keep lazy-loaded chunks (including Analytics CSS)
+    // resolvable both on the project page and on a root domain.
+    base: './',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
