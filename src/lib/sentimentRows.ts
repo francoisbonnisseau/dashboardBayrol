@@ -1,4 +1,6 @@
 export const SENTIMENT_PAGE_SIZE = 100;
+export const SENTIMENT_EXPORT_PAGE_SIZE = 1000;
+export const SENTIMENT_EXPORT_MAX_ROWS = 5000;
 
 export const SENTIMENT_LIST_COLUMNS = [
   'date',

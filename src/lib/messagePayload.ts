@@ -139,6 +139,86 @@ export function shouldShowPayloadDetails(payload: Message['payload']): boolean {
   return Boolean((kind && kind !== 'text') || (!getMessageText(payload) && Object.keys(record).length > 0));
 }
 
+export interface ExportedConversationMessage {
+  id: string;
+  date: string;
+  role: 'user' | 'bot';
+  type: string | null;
+  content: string | StructuredMessagePayload | Record<string, unknown> | null;
+}
+
+function getChoiceContent(
+  payload: Message['payload'],
+): Record<string, unknown> | undefined {
+  const record = asRecord(payload);
+  if (!record || !Array.isArray(record.options)) return undefined;
+
+  const options = record.options.flatMap((option) => {
+    const optionRecord = asRecord(option);
+    if (!optionRecord) return [];
+
+    return [{
+      label: asString(optionRecord.label),
+      value: asString(optionRecord.value),
+    }];
+  });
+
+  return {
+    ...(getMessageText(payload) ? { text: getMessageText(payload) } : {}),
+    options,
+  };
+}
+
+function getExportedMessageContent(
+  payload: Message['payload'],
+): ExportedConversationMessage['content'] {
+  const structured = getStructuredMessagePayload(payload);
+  if (structured) return structured;
+
+  const choiceContent = getChoiceContent(payload);
+  if (choiceContent) return choiceContent;
+
+  const text = getMessageText(payload);
+  if (text) return text;
+
+  const record = asRecord(payload);
+  if (!record) return null;
+
+  const content = { ...record };
+  delete content.type;
+  return Object.keys(content).length > 0 ? content : null;
+}
+
+export function serializeMessageForExport(
+  message: Pick<Message, 'id' | 'createdAt' | 'direction' | 'payload'> & {
+    type?: string;
+  },
+): ExportedConversationMessage {
+  return {
+    id: message.id,
+    date: message.createdAt,
+    role: message.direction === 'incoming' ? 'user' : 'bot',
+    type: getMessageKind(message.payload) ?? message.type ?? null,
+    content: getExportedMessageContent(message.payload),
+  };
+}
+
+export function serializeMessagesForExport(
+  messages: Array<Pick<Message, 'id' | 'createdAt' | 'direction' | 'payload'> & { type?: string }>,
+) {
+  const seenMessageIds = new Set<string>();
+
+  return messages
+    .slice()
+    .reverse()
+    .filter((message) => {
+      if (seenMessageIds.has(message.id)) return false;
+      seenMessageIds.add(message.id);
+      return true;
+    })
+    .map(serializeMessageForExport);
+}
+
 export function isSafeHttpUrl(value: string | undefined): value is string {
   if (!value) return false;
 

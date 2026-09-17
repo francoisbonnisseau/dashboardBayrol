@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Client } from '@botpress/client';
-import { getSentimentRows, getSentimentTable } from '../api/botpress/sentiment';
+import { getSentimentCount, getSentimentRows, getSentimentTable } from '../api/botpress/sentiment';
 import { buildSentimentRowsQuery, type SentimentRowsQueryOptions } from '../lib/sentimentRows';
 import { queryKeys } from './queryKeys';
 
@@ -19,5 +19,19 @@ export function useSentimentTable(client: Client | null, workspaceId: string, bo
     queryKey: queryKeys.resource(workspaceId, botId, 'sentimentTable'),
     queryFn: () => getSentimentTable(client!),
     enabled: false,
+  });
+}
+
+export function useSentimentCount(
+  client: Client | null,
+  workspaceId: string,
+  botId: string,
+  options: Omit<SentimentRowsQueryOptions, 'page'>,
+) {
+  const query = buildSentimentRowsQuery({ page: 0, ...options });
+  return useQuery({
+    queryKey: queryKeys.resource(workspaceId, botId, 'sentimentCount', query.filter),
+    queryFn: () => getSentimentCount(client!, options),
+    enabled: !!client,
   });
 }

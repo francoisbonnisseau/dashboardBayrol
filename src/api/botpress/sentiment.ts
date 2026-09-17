@@ -1,4 +1,11 @@
 import type { Client } from '@botpress/client';
+import {
+  buildSentimentRowsQuery,
+  SENTIMENT_EXPORT_MAX_ROWS,
+  SENTIMENT_EXPORT_PAGE_SIZE,
+  type SentimentRowsQueryOptions,
+} from '../../lib/sentimentRows.ts';
+
 export interface SentimentRow {
   id: number;
   date: string;
@@ -7,7 +14,6 @@ export interface SentimentRow {
   sentiment: 'very negative' | 'negative' | 'neutral' | 'positive' | 'very positive';
   conversationId: string;
 }
-import { buildSentimentRowsQuery, type SentimentRowsQueryOptions } from '../../lib/sentimentRows.ts';
 export const getSentimentTable = (client: Client) => client.getTable({ table: 'conversationsAnalysisTable' });
 export async function getSentimentRows(client: Client, options: SentimentRowsQueryOptions) {
   const response = await client.findTableRows({
@@ -27,16 +33,57 @@ export async function getSentimentRows(client: Client, options: SentimentRowsQue
     hasMore: response.hasMore
   };
 }
-export async function getAllSentimentRows(client: Client, options: Omit<SentimentRowsQueryOptions, 'page'>) {
+
+export async function getSentimentCount(
+  client: Client,
+  options: Omit<SentimentRowsQueryOptions, 'page'>,
+) {
+  const query = buildSentimentRowsQuery({ page: 0, ...options });
+  const response = await client.findTableRows({
+    table: 'conversationsAnalysisTable',
+    filter: query.filter,
+    group: { conversationId: 'count' },
+    limit: 1,
+  });
+  const count = (response.rows[0] as { conversationIdCount?: unknown } | undefined)
+    ?.conversationIdCount;
+  return typeof count === 'number' ? count : 0;
+}
+
+export async function getAllConversationMessages(
+  client: Client,
+  conversationId: string,
+) {
+  const messages: Awaited<ReturnType<Client['listMessages']>>['messages'] = [];
+  let nextToken: string | undefined;
+
+  do {
+    const response = await client.listMessages({
+      conversationId,
+      ...(nextToken ? { nextToken } : {}),
+    });
+    messages.push(...response.messages);
+    nextToken = response.meta?.nextToken;
+  } while (nextToken);
+
+  return messages;
+}
+
+export async function getAllSentimentRows(
+  client: Client,
+  options: Omit<SentimentRowsQueryOptions, 'page'>,
+  maxRows = SENTIMENT_EXPORT_MAX_ROWS,
+) {
   const rows: SentimentRow[] = [];
   for (let page = 0;; page++) {
     const result = await getSentimentRows(client, {
       ...options,
       page,
-      pageSize: 1000
+      pageSize: SENTIMENT_EXPORT_PAGE_SIZE,
     });
     rows.push(...result.rows);
-    if (!result.hasMore || !result.rows.length)
-      return rows;
+    if (!result.hasMore || !result.rows.length || rows.length >= maxRows) {
+      return rows.slice(0, maxRows);
+    }
   }
 }

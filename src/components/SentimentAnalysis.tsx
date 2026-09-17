@@ -1,8 +1,14 @@
 import {
   useSentimentRows,
   useSentimentTable,
+  useSentimentCount,
 } from '@/queries/useSentimentRows';
-import { getAllSentimentRows } from '@/api/botpress/sentiment';
+import {
+  getAllConversationMessages,
+  getAllSentimentRows,
+} from '@/api/botpress/sentiment';
+import { SENTIMENT_EXPORT_MAX_ROWS } from '@/lib/sentimentRows';
+import { serializeMessagesForExport } from '@/lib/messagePayload';
 import { ToggleSwitch } from '@/components/dashboard/ToggleSwitch';
 import { useState, useEffect, useCallback } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
@@ -90,11 +96,22 @@ export default function SentimentAnalysis() {
     settings.workspaceId,
     selectedBotId,
   );
+  const countQuery = useSentimentCount(
+    client,
+    settings.workspaceId,
+    selectedBotId,
+    { sentiment: sentimentFilter, showResolved, startDate, endDate },
+  );
   const rows = rowsQuery.data?.rows ?? [];
   const filteredRows = rows;
   const hasMore = rowsQuery.data?.hasMore ?? false;
   const tableInfo = tableQuery.data;
-  const loading = rowsQuery.isFetching || tableQuery.isFetching || exporting;
+  const conversationCount = countQuery.data ?? null;
+  const loading =
+    rowsQuery.isFetching ||
+    tableQuery.isFetching ||
+    countQuery.isFetching ||
+    exporting;
   const error =
     exportError ||
     (rowsQuery.error
@@ -104,10 +121,16 @@ export default function SentimentAnalysis() {
             tableQuery.error,
             'Failed to fetch table information',
           )
+        : countQuery.error
+          ? formatBotpressError(
+              countQuery.error,
+              'Failed to fetch conversation count',
+            )
         : null);
   const fetchTableInfo = () => {
     void rowsQuery.refetch();
     void tableQuery.refetch();
+    void countQuery.refetch();
   };
 
   // Set default bot if none selected
@@ -165,39 +188,21 @@ export default function SentimentAnalysis() {
         showResolved,
         startDate,
         endDate,
-      });
-      // Fetch full conversation details for each filtered conversation
+      }, SENTIMENT_EXPORT_MAX_ROWS);
+      // Fetch and preserve the complete message payload for each conversation.
       const conversationsData = [];
 
       for (const row of exportRows) {
         try {
-          // Get messages for this conversation
-          const response = await client.listMessages({
-            conversationId: row.conversationId,
-          });
-          if (response && response.messages && response.messages.length > 1) {
-            // Only include conversations with more than one message
-            const conversation: Record<string, string> = {};
-            let messageIndex = 1;
-
-            // Reverse messages to get chronological order (oldest first)
-            const orderedMessages = [...response.messages].reverse();
-
-            // Build conversation object with user/bot alternating structure
-            orderedMessages.forEach((message) => {
-              const role = message.direction === 'incoming' ? 'user' : 'bot';
-              const key = `${role}${messageIndex}`;
-              conversation[key] = message.payload?.text || '';
-
-              // Increment index for alternating messages
-              if (message.direction === 'outgoing') {
-                messageIndex++;
-              }
-            });
-
+          const messages = await getAllConversationMessages(
+            client,
+            row.conversationId,
+          );
+          if (messages.length > 0) {
             conversationsData.push({
               date: row.date,
-              conversation: conversation,
+              conversationId: row.conversationId,
+              conversation: serializeMessagesForExport(messages),
             });
           }
         } catch (error) {
@@ -384,10 +389,23 @@ export default function SentimentAnalysis() {
               onClick={downloadConversations}
               disabled={loading || !client || (!hasMore && !rows.length)}
               variant="outline"
+              title={`Export up to ${SENTIMENT_EXPORT_MAX_ROWS.toLocaleString()} conversations`}
             >
               <Download className="size-4" />
               {exporting ? 'Exporting…' : 'Export'}
             </Button>
+            <span
+              className="whitespace-nowrap text-sm text-muted-foreground"
+              aria-live="polite"
+            >
+              Conversations:{' '}
+              {conversationCount === null
+                ? '…'
+                : conversationCount.toLocaleString()}
+              {conversationCount !== null &&
+                conversationCount > SENTIMENT_EXPORT_MAX_ROWS &&
+                ` (export max. ${SENTIMENT_EXPORT_MAX_ROWS.toLocaleString()})`}
+            </span>
           </FilterBar>
         }
         pagination={
